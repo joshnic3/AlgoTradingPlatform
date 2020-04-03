@@ -16,15 +16,15 @@ class Database:
         self._connection = sqlite3.connect(db_file_path)
         self._cursor = self._connection.cursor()
         self.tables = [i[0] for i in
-                       self._execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")]
+                       self.execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")]
 
         if schema:
             for required_table in schema:
                 if required_table not in self.tables:
                     sql = schema[required_table].replace('%table%', required_table)
-                    self._execute_sql(sql)
+                    self.execute_sql(sql)
 
-    def _execute_sql(self, sql):
+    def execute_sql(self, sql):
         self._cursor.execute(sql)
         results = [list(i) for i in self._cursor.fetchall()]
         self._connection.commit()
@@ -34,12 +34,16 @@ class Database:
         if table not in self.tables:
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
-        self._execute_sql(sql)
+        self.execute_sql(sql)
 
     def query_table(self, table, condition=None, columns=None):
+        if isinstance(columns, list):
+            columns = ', '.join(columns)
+        if columns is None:
+            columns = '*'
         if table not in self.tables:
             return None
-        sql = 'SELECT {0} FROM {1}{2}'.format(', '.columns if columns else '*',
+        sql = 'SELECT {0} FROM {1}{2}'.format(columns,
                                               table,
                                               ' WHERE {};'.format(condition) if condition else ';')
-        return self._execute_sql(sql)
+        return self.execute_sql(sql)
