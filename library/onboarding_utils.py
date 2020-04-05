@@ -3,6 +3,8 @@ import os
 from library.file_utils import get_environment_specific_path, add_dir, read_json_file
 from library.db_interface import Database
 
+# Seperated as may be used by flask service in future.
+
 
 def setup_database_environments(db_root_path):
     db_configs = read_json_file(os.path.join(db_root_path, 'databases.json'))

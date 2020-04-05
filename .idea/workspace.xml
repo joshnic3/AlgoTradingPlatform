@@ -4,9 +4,6 @@
     <list default="true" id="70ef8c72-69c4-4dd9-9c5f-df52ed5560ac" name="Default Changelist" comment="">
       <change afterPath="$PROJECT_DIR$/../drive/configs/fml_data_source_config.json" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/../drive/data/databases.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/library/data_source_utils.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/data_loader.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/file_utils.py" beforeDir="false" />
@@ -341,12 +338,16 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" afterPath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_source_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_interface.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/log_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/log_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -368,6 +369,7 @@
   <component name="ProjectId" id="1a01I8a01zBKK23EfQSYyoiktu7" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="PropertiesComponent">
+    <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="restartRequiresConfirmation" value="false" />
@@ -405,7 +407,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="" />
+      <option name="PARAMETERS" value="-e stage -c $PROJECT_DIR$/../drive/configs/data_loader_config.json" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -434,6 +436,10 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
+    <list>
+      <item itemvalue="Python.data_loader" />
+      <item itemvalue="Python.onboarding_tool" />
+    </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.data_loader" />
@@ -484,13 +490,13 @@
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/library/onboarding_utils.py</url>
-          <line>30</line>
+          <line>32</line>
           <option name="timeStamp" value="74" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/data_loader.py</url>
-          <line>78</line>
-          <option name="timeStamp" value="77" />
+          <url>file://$PROJECT_DIR$/library/log_utils.py</url>
+          <line>48</line>
+          <option name="timeStamp" value="78" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
