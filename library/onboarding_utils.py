@@ -30,5 +30,5 @@ def add_twap_required_tickers(environment, required_tickers):
 def add_data_source(environment, name, config):
     root_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data'
     db = Database(root_path, 'data_sources', True, environment=environment.lower())
-    values = [0, name, config]
+    values = ['0', name, config]
     db.insert_row('data_sources', values)

@@ -1,8 +1,6 @@
 import datetime
 import os
 import logging
-import sys
-from logging.handlers import WatchedFileHandler
 
 
 def get_log_file_path(root_path, script_name):
@@ -14,19 +12,18 @@ def get_log_file_path(root_path, script_name):
 
 
 def setup_log(log_path):
-    # Stream handler is the broken one
-    ch = logging.FileHandler(log_path)
-    sh = logging.StreamHandler()
+    # Setup logging to file.
+    logging.root.handlers = []
+    log_format = '%(asctime)s: %(message)s'
+    logging.basicConfig(level='INFO', format=log_format, filename=log_path)
+    log = logging.getLogger('')
 
-    log_format = logging.Formatter('%(asctime)s: %(message)s')
-    ch.setFormatter(log_format)
-    sh.setFormatter(log_format)
-
-    log = logging.getLogger('data_loader')
-    log.addHandler(ch)
-    log.addHandler(sh)
-
-    logging.basicConfig(level=logging.INFO)
+    # Setup logging to console.
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter(log_format)
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
     return log
 
 
@@ -36,7 +33,7 @@ def log_configs(configs, log):
         log.info(config_str)
 
 
-def log_seperator(log):
+def log_hr(log):
     log.info('-----------------------------------------------------')
 
 

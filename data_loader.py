@@ -9,13 +9,12 @@ from itertools import chain
 
 from library.db_interface import Database
 from library.file_utils import read_json_file, parse_configs_file
-from library.log_utils import get_log_file_path, setup_log, log_configs, log_seperator, log_end_status
+from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr, log_end_status
 from library.data_source_utils import get_data_source_configs, DataSource
 
 configs = {}
 
 
-# TODO add error handling and read from db, should be as generic as possible.
 class TickerDataSource(DataSource):
 
     def __init__(self, name):
@@ -43,8 +42,13 @@ class TWAP:
     def __str__(self):
         formatted_ticks = [(t[0], t[1]) for t in self.ticks]
         values = [t[1] for t in self.ticks]
+        times = [t[0] for t in self.ticks]
         spread = max(values) - min(values)
-        return '[Symbol: {0}, TWAP: {1}, Ticks:{2}, Spread: {3}]'.format(self.symbol, self.twap, len(formatted_ticks), spread)
+        return '[Symbol: {0}, TWAP: {1}, Start Time: {2}, Ticks: {3}, Spread: {4}]'.format(self.symbol,
+                                                                                          self.twap,
+                                                                                          min(times).strftime(
+                                                                                              '%H:%M.%S'),
+                                                                                          len(formatted_ticks), spread)
 
     def _is_stale(self, value):
         if not self.ticks or float(value) != self.ticks[-1][1]:
@@ -97,19 +101,23 @@ class TWAPDataLoader:
         for twap in self.twaps:
             twap.calculate_twap()
 
-    def save_twaps_to_db(self):
+    def save_twaps_to_db(self, log=None):
         for twap in self.twaps:
             twap.save_to_db(self._db)
+            if log:
+                log.info(twap.__str__())
 
 
 def worker_func(log, worker_id, group, required_tickers, db):
     # Create a new worker process for each group.
-    data_loader = TWAPDataLoader(group[2], required_tickers, db)
+    interval, resolution, source = group
+    data_loader = TWAPDataLoader(source, required_tickers, db)
     completed = 0
-    while completed < int(group[1]):
+    multiplier = 60
+    while completed < int(resolution):
         data_loader.get_ticker_values()
         completed += 1
-        # time.sleep(int(group[0]) * 60)
+        time.sleep((int(interval) / int(resolution)) * multiplier)
     data_loader.calculate_twaps()
     log.info('Loader {0} completed {1} [Source: {2}, Tickers: {3}, DataWarnings: {4}]'.format(worker_id,
                                                                                   'with WARNINGS.' if data_loader.data_warnings else 'SUCCESSFULLY!',
@@ -133,8 +141,12 @@ def parse_cmdline_args():
     return cmdline_args
 
 
+def required_tickers_for_group(db, group):
+    condition = 'interval="{0}" AND resolution="{1}" AND source="{2}"'.format(*group)
+    return db.query_table('twap_required_tickers', condition)
+
+
 def main():
-    status = -1
     global configs
     cmdline_args = parse_cmdline_args()
     configs = parse_configs_file(cmdline_args)
@@ -144,6 +156,8 @@ def main():
     log_path = get_log_file_path(configs['root_path'], script_name.split('.')[0])
     log = setup_log(log_path)
     log_configs(cmdline_args, log)
+    if configs != cmdline_args:
+        log.info('Imported {0} additional config items from script config file'.format(len(configs)-len(cmdline_args)))
 
     # Setup db connection.
     db = Database(configs['db_root_path'], 'algo_trading_platform', True, configs['environment'])
@@ -154,32 +168,26 @@ def main():
     pool = ThreadPool(cpu_count)
 
     # Count required tickers.
-    results = db.execute_sql('SELECT DISTINCT id FROM twap_required_tickers;')
-    log.info('Found {0} required ticker(s)'.format(len(results)))
+    required_tickers = db.execute_sql('SELECT DISTINCT id FROM twap_required_tickers;')
+    log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
-    # Group TWAPS by DISTINCT interval, resolution and source
-    results = db.execute_sql('SELECT DISTINCT interval, resolution, source FROM twap_required_tickers;')
-    groups = [r for r in results]
-    workers = []
+    # Get TWAPS.
+    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, resolution, source FROM twap_required_tickers;')]
     log.info('Grouped into {0} data loader(s)'.format(len(groups)))
-    log_seperator(log)
-    for group in groups:
-        condition = 'interval="{0}" AND resolution="{1}" AND source="{2}"'.format(group[0], group[1], group[2])
-        required_tickers = db.query_table('twap_required_tickers', condition)
-        workers.append(pool.apply_async(worker_func, args=(log, groups.index(group), group, required_tickers, db, )))
+    log_hr(log)
+    workers = [pool.apply_async(worker_func, args=(log, groups.index(g), g, required_tickers_for_group(db, g), db, ))
+               for g in groups]
     pool.close()
     pool.join()
 
     # Read results.
     data_loaders = [w.get() for w in workers]
-    twaps = [i for i in chain.from_iterable([dl.twaps for dl in data_loaders])]
+    retrieved_twaps = [i for i in chain.from_iterable([dl.twaps for dl in data_loaders])]
     data_warnings = [i for i in chain.from_iterable([dl.data_warnings for dl in data_loaders])]
 
     # Log results.
-    log_seperator(log)
-    log.info('Retrieved {0} TWAPS'.format(len(twaps)))
-    for twap in twaps:
-        twap.log_twap(log)
+    log_hr(log)
+    log.info('Retrieved {0} TWAPS'.format(len(retrieved_twaps)))
     if data_warnings:
         unique_data_warnings = list(set(data_warnings))
         log.info('{0} Data Warnings:'.format(len(data_warnings)))
@@ -188,26 +196,21 @@ def main():
 
     # Save results to database.
     if not configs['dry_run']:
+        log.info('Saving {0} TWAPS to database:'.format(len(retrieved_twaps)))
         for data_loader in data_loaders:
-            data_loader.save_twaps_to_db()
-        log.info('Saved {0} TWAPS to database'.format(len(twaps)))
+            data_loader.save_twaps_to_db(log)
+
     else:
         log.info('This is a dry run so TWAPS where not saved')
 
     # Log summary.
-    log_seperator(log)
-    requested = len(db.query_table('twap_required_tickers'))
-    successful = len(twaps)
-    if requested == successful:
-        if data_warnings:
-            status = 2
-            log_end_status(log, script_name, status)
-        else:
-            status = 0
-            log_end_status(log, script_name, status)
+    log_hr(log)
+    success = len(required_tickers) == len(retrieved_twaps)
+    if success:
+        status = 2 if data_warnings else 0
     else:
         status = 1
-        log_end_status(log, script_name, status)
+    log_end_status(log, script_name, status)
     return status
 
 

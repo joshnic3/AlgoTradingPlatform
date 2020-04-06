@@ -22,10 +22,22 @@ class DataSource:
     def __str__(self):
         return self.name
 
-    @staticmethod
-    def _call_api_return_as_dict(url):
-        response = requests.get(url)
-        return response.json()
+    def _catch_errors(self, response):
+        response_code = response.status_code
+        if response_code == 200:
+            return response
+        raise Exception('Bad response from source: {0}, code: {1}'.format(self.name, response_code))
+
+    def _call_api_return_as_dict(self, url):
+        results = None
+        try:
+            response = requests.get(url)
+            self._catch_errors(response)
+            results = response.json()
+        except requests.HTTPError:
+            raise Exception('Could not connect to source: {0}'.format(self.name))
+
+        return results
 
     @staticmethod
     def _prepare_api_call_url(template, wildcards_dict):
