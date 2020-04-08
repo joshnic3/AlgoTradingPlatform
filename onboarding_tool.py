@@ -54,7 +54,6 @@ def main():
     # On board each application.
     for onboarder in onboarders:
         onboarder.setup_db()
-        onboarder.setup_db(configs['environment'])
 
 
     # TODO datasources
