@@ -110,14 +110,14 @@ class TWAPDataLoader:
 
 def worker_func(log, worker_id, group, required_tickers, db):
     # Create a new worker process for each group.
-    interval, resolution, source = group
+    interval, count, source = group
     data_loader = TWAPDataLoader(source, required_tickers, db)
     completed = 0
     multiplier = 60
-    while completed < int(resolution):
+    while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
-        time.sleep((int(interval) / int(resolution)) * multiplier)
+        time.sleep((int(interval) / int(count)) * multiplier)
     data_loader.calculate_twaps()
     log.info('Loader {0} completed {1} [Source: {2}, Tickers: {3}, DataWarnings: {4}]'.format(worker_id,
                                                                                   'with WARNINGS.' if data_loader.data_warnings else 'SUCCESSFULLY!',
@@ -142,7 +142,7 @@ def parse_cmdline_args():
 
 
 def required_tickers_for_group(db, group):
-    condition = 'interval="{0}" AND resolution="{1}" AND source="{2}"'.format(*group)
+    condition = 'interval="{0}" AND count="{1}" AND source="{2}"'.format(*group)
     return db.query_table('twap_required_tickers', condition)
 
 
@@ -172,7 +172,7 @@ def main():
     log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
     # Get TWAPS.
-    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, resolution, source FROM twap_required_tickers;')]
+    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, count, source FROM twap_required_tickers;')]
     log.info('Grouped into {0} data loader(s)'.format(len(groups)))
     log_hr(log)
     workers = [pool.apply_async(worker_func, args=(log, groups.index(g), g, required_tickers_for_group(db, g), db, ))

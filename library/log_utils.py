@@ -19,6 +19,7 @@ def setup_log(log_path):
     log = logging.getLogger('')
 
     # Setup logging to console.
+    # TODO only do this if env = dev
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     formatter = logging.Formatter(log_format)

@@ -20,15 +20,13 @@ def setup_database_environments(db_root_path):
             Database(db_root_path, database, auto_create=True, environment=environment.lower())
 
 
-def add_twap_required_tickers(environment, required_tickers):
-    root_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data'
-    db = Database(root_path, 'algo_trading_platform', True, environment=environment.lower())
+def add_twap_required_tickers(db_root_path, environment, required_tickers):
+    db = Database(db_root_path, 'algo_trading_platform', True, environment=environment.lower())
     for required_ticker in required_tickers:
         db.insert_row('twap_required_tickers', required_ticker)
 
 
-def add_data_source(environment, name, config):
-    root_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data'
-    db = Database(root_path, 'data_sources', True, environment=environment.lower())
+def add_data_source(db_root_path, environment, name, config):
+    db = Database(db_root_path, 'data_sources', True, environment=environment.lower())
     values = ['0', name, config]
     db.insert_row('data_sources', values)

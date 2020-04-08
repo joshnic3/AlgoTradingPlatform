@@ -4,7 +4,6 @@
     <list default="true" id="70ef8c72-69c4-4dd9-9c5f-df52ed5560ac" name="Default Changelist" comment="">
       <change afterPath="$PROJECT_DIR$/../drive/configs/fml_data_source_config.json" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/../drive/data/databases.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/data_loader.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/file_utils.py" beforeDir="false" />
@@ -341,7 +340,7 @@
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_source_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/log_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/log_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
@@ -480,5 +479,15 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="removed data from repo" />
     <option name="LAST_COMMIT_MESSAGE" value="removed data from repo" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
+          <option name="timeStamp" value="4" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
