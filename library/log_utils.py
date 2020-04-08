@@ -11,7 +11,7 @@ def get_log_file_path(root_path, script_name):
     return os.path.join(*log_file_path_template)
 
 
-def setup_log(log_path):
+def setup_log(log_path, show_in_console=False):
     # Setup logging to file.
     logging.root.handlers = []
     log_format = '%(asctime)s: %(message)s'
@@ -19,12 +19,12 @@ def setup_log(log_path):
     log = logging.getLogger('')
 
     # Setup logging to console.
-    # TODO only do this if env = dev
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter(log_format)
-    console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
+    if show_in_console:
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        formatter = logging.Formatter(log_format)
+        console.setFormatter(formatter)
+        logging.getLogger('').addHandler(console)
     return log
 
 

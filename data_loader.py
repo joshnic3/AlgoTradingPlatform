@@ -117,7 +117,7 @@ def worker_func(log, worker_id, group, required_tickers, db):
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
-        time.sleep((int(interval) / int(count)) * multiplier)
+        time.sleep(int(interval) * multiplier)
     data_loader.calculate_twaps()
     log.info('Loader {0} completed {1} [Source: {2}, Tickers: {3}, DataWarnings: {4}]'.format(worker_id,
                                                                                   'with WARNINGS.' if data_loader.data_warnings else 'SUCCESSFULLY!',
@@ -154,7 +154,7 @@ def main():
     # Setup logging.
     script_name = str(os.path.basename(sys.argv[0]))
     log_path = get_log_file_path(configs['root_path'], script_name.split('.')[0])
-    log = setup_log(log_path)
+    log = setup_log(log_path, True if configs['environment'].lower() == 'dev' else False)
     log_configs(cmdline_args, log)
     if configs != cmdline_args:
         log.info('Imported {0} additional config items from script config file'.format(len(configs)-len(cmdline_args)))

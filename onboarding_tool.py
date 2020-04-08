@@ -27,10 +27,10 @@ class ApplicationOnboarder:
             raise Exception('Database has not been setup yet.')
 
         # Setup test for data_loader
-        required_tickers = [['0', 'NMR', 'FML', '60', '4'],
-                            ['1', 'MSFT', 'FML', '60', '4'],
-                            ['2', 'MS', 'FML', '15', '3'],
-                            ['3', 'JPM', 'FML', '15', '3']]
+        required_tickers = [['0', 'NMR', 'FML', '15', '4'],
+                            ['1', 'MSFT', 'FML', '15', '4'],
+                            ['2', 'MS', 'FML', '5', '3'],
+                            ['3', 'JPM', 'FML', '5', '3']]
         add_twap_required_tickers(self._configs['db_root_path'], self._environment, required_tickers)
 
 
@@ -38,26 +38,26 @@ def main():
     # should be able to set everything up with just "db_root_path" and "root_path" (including data_loader_config and crontab jobs)
 
     # Parse configs.
-    configs = read_json_file(os.path.join('/home/robot/drive/configs', '{0}_config.json'.format('algo_trading_platform')))
+    # configs = read_json_file(os.path.join('/home/robot/drive/configs', '{0}_config.json'.format('algo_trading_platform')))
 
-    configs['application_name'] = 'algo_trading_platform'
-    configs['configs_path'] = '/home/robot/drive/configs'
-    configs['environment'] = 'dev'
-
-    # Setup database environments.
-    setup_database_environments_paths(configs['db_root_path'])
-
-    # Initiate each application onboarder.
-    applications = configs['application_name'].split(',')
-    onboarders = [ApplicationOnboarder(configs['configs_path'], a, configs['environment']) for a in applications]
+    # configs['application_name'] = 'algo_trading_platform'
+    # configs['configs_path'] = '/home/robot/drive/configs'
+    # configs['environment'] = 'dev'
+    #
+    # # Setup database environments.
+    # setup_database_environments_paths(configs['db_root_path'])
+    #
+    # # Initiate each application onboarder.
+    # applications = configs['application_name'].split(',')
+    # onboarders = [ApplicationOnboarder(configs['configs_path'], a, configs['environment']) for a in applications]
 
     # On board each application.
-    for onboarder in onboarders:
-        onboarder.setup_db()
+    # for onboarder in onboarders:
+    #     onboarder.setup_db()
 
 
     # TODO datasources
-    # add_data_source(configs['db_root_path'], environment, 'FML', os.path.join(configs_path, 'fml_data_source_config.json'))
+    add_data_source('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data', 'dev', 'FML', os.path.join('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/configs', 'fml_data_source_config.json'))
 
     return 0
 
