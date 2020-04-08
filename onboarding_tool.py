@@ -38,7 +38,7 @@ def main():
     # should be able to set everything up with just "db_root_path" and "root_path" (including data_loader_config and crontab jobs)
 
     # Parse configs.
-    configs = read_json_file(os.path.join('/home/robot/drive/configs', '{0}_config.json'.format('data_loader')))
+    configs = read_json_file(os.path.join('/home/robot/drive/configs', '{0}_config.json'.format('algo_trading_platform')))
 
     configs['application_name'] = 'algo_trading_platform'
     configs['configs_path'] = '/home/robot/drive/configs'
