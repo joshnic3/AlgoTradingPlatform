@@ -8,9 +8,9 @@ from multiprocessing.pool import ThreadPool
 from itertools import chain
 
 from library.db_interface import Database
-from library.file_utils import read_json_file, parse_configs_file
+from library.file_utils import parse_configs_file
 from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr, log_end_status
-from library.data_source_utils import get_data_source_configs, DataSource
+from library.data_source_utils import DataSource
 
 configs = {}
 
@@ -108,16 +108,17 @@ class TWAPDataLoader:
                 log.info(twap.__str__())
 
 
-def worker_func(log, worker_id, group, required_tickers, db):
+def worker_func(worker_id, group, required_tickers, db, log):
+    # interval, count
     # Create a new worker process for each group.
-    interval, resolution, source = group
-    data_loader = TWAPDataLoader(source, required_tickers, db)
-    completed = 0
     multiplier = 60
-    while completed < int(resolution):
+    interval, count, source = group
+    data_loader = TWAPDataLoader(source, required_tickers, db)
+    snaps_left = int(count)
+    while snaps_left > 0:
+        snaps_left -= 1
         data_loader.get_ticker_values()
-        completed += 1
-        time.sleep((int(interval) / int(resolution)) * multiplier)
+        time.sleep(int(interval) * multiplier)
     data_loader.calculate_twaps()
     log.info('Loader {0} completed {1} [Source: {2}, Tickers: {3}, DataWarnings: {4}]'.format(worker_id,
                                                                                   'with WARNINGS.' if data_loader.data_warnings else 'SUCCESSFULLY!',
@@ -141,12 +142,14 @@ def parse_cmdline_args():
     return cmdline_args
 
 
+# TODO make sure tickers are unique
 def required_tickers_for_group(db, group):
     condition = 'interval="{0}" AND resolution="{1}" AND source="{2}"'.format(*group)
     return db.query_table('twap_required_tickers', condition)
 
 
 def main():
+    print(sys.argv)
     global configs
     cmdline_args = parse_cmdline_args()
     configs = parse_configs_file(cmdline_args)
@@ -172,10 +175,10 @@ def main():
     log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
     # Get TWAPS.
-    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, resolution, source FROM twap_required_tickers;')]
+    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, resolution, count FROM twap_required_tickers;')]
     log.info('Grouped into {0} data loader(s)'.format(len(groups)))
     log_hr(log)
-    workers = [pool.apply_async(worker_func, args=(log, groups.index(g), g, required_tickers_for_group(db, g), db, ))
+    workers = [pool.apply_async(worker_func, args=(groups.index(g), g, required_tickers_for_group(db, g), db, log, ))
                for g in groups]
     pool.close()
     pool.join()
