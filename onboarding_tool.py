@@ -40,7 +40,7 @@ def main():
     # Parse configs.
     configs = read_json_file(os.path.join('/home/robot/drive/configs', '{0}_config.json'.format('data_loader')))
 
-    configs['application_name'] = 'data_loader'
+    configs['application_name'] = 'algo_trading_platform'
     configs['configs_path'] = '/home/robot/drive/configs'
     configs['environment'] = 'dev'
 
