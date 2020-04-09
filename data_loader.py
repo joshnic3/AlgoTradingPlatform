@@ -133,12 +133,11 @@ def parse_cmdline_args():
     parser.add_option('-c', '--config_file', dest="config_file")
     parser.add_option('--dry_run', action="store_true", default=False)
     options, args = parser.parse_args()
-    cmdline_args = {
+    return {
         "environment": options.environment.lower(),
         "config_file": options.config_file,
         "dry_run": options.dry_run
     }
-    return cmdline_args
 
 
 def required_tickers_for_group(db, group):
