@@ -25,11 +25,15 @@ class Database:
         self.tables = [i[0] for i in
                        self.execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")]
         if auto_create:
+            # TODO Should be from application config
             schema = _databases[name]['schema']
             for required_table in schema:
                 if required_table not in self.tables:
                     sql = schema[required_table].replace('%table%', required_table)
                     self.execute_sql(sql)
+
+    def __str__(self):
+        return '[name: {0}, environment: {1}]'.format(self._name, self._environment)
 
     def execute_sql(self, sql):
         self._cursor.execute(sql)
@@ -39,7 +43,7 @@ class Database:
 
     def insert_row(self, table, values):
         values = [str(v) for v in values]
-        if table not in self.tables:
+        if table.lower() not in self.tables:
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
         self.execute_sql(sql)
@@ -56,6 +60,5 @@ class Database:
                                               ' WHERE {};'.format(condition) if condition else ';')
         return self.execute_sql(sql)
 
-    def log_status(self, log):
-        status = 'Connected to database: {0}, Environment: {1}'.format(self._name, self._environment)
-        log.info(status)
+    def log(self, log):
+        log.info('Connected to database: {0}'.format(self.__str__()))

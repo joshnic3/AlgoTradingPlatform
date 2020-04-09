@@ -11,7 +11,8 @@ def setup_database_environment_path(db_root_path, environment):
     db_configs = read_json_file(os.path.join(db_root_path, 'databases.json'))
     databases = dict(db_configs['databases'])
     path = os.path.join(db_root_path, environment.lower())
-    add_dir(path, overwrite=True)
+    # option to back up exisitng copy
+    add_dir(path, backup=True)
     for database in databases:
         db_file = os.path.join(db_root_path, environment, '{0}.db'.format(database))
         with open(db_file, 'w') as fp:

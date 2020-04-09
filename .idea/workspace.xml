@@ -337,12 +337,20 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/lib/python3.7/site-packages/setuptools-40.8.0-py3.7.egg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/lib/python3.7/site-packages/setuptools.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" afterPath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/atp_data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_source_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/job_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/log_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/log_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -388,7 +396,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.onboarding_tool">
+  <component name="RunManager" selected="Python.data_loader">
     <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -401,8 +409,8 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="-e dev -c $PROJECT_DIR$/../drive/configs/data_loader_config.json" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/atp_data_loader.py" />
+      <option name="PARAMETERS" value="-e dev -c $PROJECT_DIR$/../drive/configs/algo_trading_platform_config.json -j test_data_loader" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -437,8 +445,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.onboarding_tool" />
         <item itemvalue="Python.data_loader" />
+        <item itemvalue="Python.onboarding_tool" />
       </list>
     </recent_temporary>
   </component>
@@ -484,14 +492,14 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/library/db_interface.py</url>
-          <line>44</line>
-          <option name="timeStamp" value="8" />
+          <url>file://$PROJECT_DIR$/library/onboarding_utils.py</url>
+          <line>30</line>
+          <option name="timeStamp" value="32" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
-          <line>78</line>
-          <option name="timeStamp" value="10" />
+          <url>file://$PROJECT_DIR$/library/data_source_utils.py</url>
+          <line>11</line>
+          <option name="timeStamp" value="34" />
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
