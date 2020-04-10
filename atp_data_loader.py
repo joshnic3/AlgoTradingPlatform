@@ -164,7 +164,7 @@ def main():
         log.info('Imported {0} additional config items from script config file'.format(len(configs)-len(cmdline_args)))
 
     # Setup db connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', True, configs['environment'])
+    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
     db.log(log)
 
     # Initiate Job.

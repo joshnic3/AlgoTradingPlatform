@@ -1,11 +1,12 @@
 import os
 import shutil
 import json
+import datetime
 
 
 def _check_environment_exists(env):
     # Dont know how to handle this correctly yet.
-    environments = ["dev", "test_environment"]
+    environments = ["dev", "staging"]
     if env not in environments:
         raise Exception('Environment "{}" does not exist!'.format(env.lower()))
 
@@ -17,12 +18,14 @@ def get_environment_specific_path(root, env):
 
 
 def add_dir(path, overwrite=False, backup=False):
-    # if backup:
-    #     # TODO add option to back up existing copy
-    #     if not os.path.isdir(path):
-    #         # Copy dir to path+datetime.now()
-    #         pass
-    #     pass
+    if overwrite and backup:
+        raise Exception('Cannot overwrite and back up directory at the same time.')
+    if os.path.isdir(path) and backup:
+        now = datetime.datetime.now()
+        parent_dir = os.path.dirname(path)
+        backup_path = os.path.join(parent_dir, '{0}_{1}'.format(path, now.strftime('%Y%m%d%H%M%S')))
+        shutil.copytree(path, backup_path)
+        overwrite = True
     if os.path.isdir(path) and overwrite:
         shutil.rmtree(path)
     os.mkdir(path)
@@ -44,12 +47,15 @@ def write_json_file(json_file_path, content):
 
 
 def parse_configs_file(cmdline_args):
-    # Read script configurations into dict.
-    configs = read_json_file(cmdline_args['config_file'])
+    if isinstance(cmdline_args, dict):
+        # Read script configurations into dict.
+        configs = read_json_file(cmdline_args['config_file'])
 
-    # Load cmdline args into configurations dict.
-    configs = dict(configs)
-    configs.update(cmdline_args)
+        # Load cmdline args into configurations dict.
+        configs = dict(configs)
+        configs.update(cmdline_args)
+    else:
+        configs = read_json_file(cmdline_args)
 
     # Add default root paths
     configs["db_root_path"] = os.path.join(configs["root_path"], 'data')

@@ -2,27 +2,27 @@ import sys
 import os
 import optparse
 
-from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source
-from library.file_utils import read_json_file, edit_config_file, parse_configs_file
-from library.db_interface import Database
+from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source, initiate_database
+from library.file_utils import edit_config_file, parse_configs_file, get_environment_specific_path
+from library.db_interface import initiate_database
 
 
 class ApplicationOnboarder:
 
     def __init__(self, configs_path, application_name, environment):
         self.name = application_name
-        self._configs_file_path = os.path.join(configs_path, '{0}_config.json'.format(self.name ))
-        self._configs = parse_configs_file({'config_file': self._configs_file_path})
-
-        self._db = None
+        self._app_configs_file_path = os.path.join(configs_path, '{0}_config.json'.format(self.name))
+        self._app_configs = parse_configs_file({'config_file': self._app_configs_file_path})
         self._environment = environment.lower()
+        self._db = None
 
     def deploy(self):
-        self._db = Database(self._configs['db_root_path'], self.name, auto_create=True, environment=self._environment)
+        # db_root_path, db_name, schema, environment
+        self._db = initiate_database(self._app_configs['db_root_path'], self.name, self._app_configs['schema'], self._environment)
         self._write_setup_data_to_db()
-        # self._generate_deployment_script()
+        self._generate_deployment_script()
         self._add_environment_to_app_config()
-        # self._setup_cron_jobs()
+        self._setup_cron_jobs()
 
     def _write_setup_data_to_db(self):
         if self._db is None:
@@ -33,7 +33,9 @@ class ApplicationOnboarder:
                             ['1', 'MSFT', 'FML', '15', '4'],
                             ['2', 'MS', 'FML', '5', '3'],
                             ['3', 'JPM', 'FML', '5', '3']]
-        add_twap_required_tickers(self._configs['db_root_path'], self._environment, required_tickers)
+        add_twap_required_tickers(self._app_configs['db_root_path'], self._environment, required_tickers)
+        add_data_source(self._app_configs['db_root_path'], self._environment, 'FML',
+                        os.path.join(self._app_configs['configs_root_path'], 'fml_data_source_config.json'))
 
     def _generate_deployment_script(self):
         file_path = 'deploy_{}.sh'.format(self._environment)
@@ -55,50 +57,47 @@ class ApplicationOnboarder:
                 df.write(line_str)
 
     def _add_environment_to_app_config(self):
-        environments = self._configs['environments']
+        environments = self._app_configs['environments']
         if self._environment not in environments:
-            edit_config_file(self._configs_file_path, 'environments', environments.append(self._environment))
+            edit_config_file(self._app_configs_file_path, 'environments', environments.append(self._environment))
 
     # TODO Implement
     def _setup_cron_jobs(self):
-        # Use venv python, its included in the repo.
-        python_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/repo/venv/bin/python3.7'
-        pass
+        repo_path = os.path.dirname(__file__)
+        interpreter = os.path.join(repo_path, '/venv/bin/python3.7')
+        jobs = self._app_configs['jobs']
+        for job in jobs:
+            cron_job_template = [interpreter, job['script'], job['args']]
 
 
 def parse_cmdline_args():
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
-    parser.add_option('-c', '--configs_path', dest="configs_path")
+    parser.add_option('-r', '--root_path', dest="root_path")
     parser.add_option('-a', '--applications', dest="applications", default=None)
-    parser.add_option('-d', '--data_sources', dest="data_sources", default=None)
 
     options, args = parser.parse_args()
     return {
         "environment": options.environment.lower(),
-        "configs_path": options.configs_path,
+        "configs_path": options.root_path,
         "applications": options.applications,
-        "data_sources": options.data_sources
+        "db_root_path": os.path.join(options.root_path, 'data'),
+        "configs_root_path": os.path.join(options.root_path, 'configs'),
+        "logs_root_path": os.path.join(options.root_path, 'logs')
     }
 
 
 def main():
     configs = parse_cmdline_args()
 
-    # if configs['applications']:
-    #     for app in configs['applications'].split(','):
-    #         app = app.lower()
-    #         app_configs_file_path = os.path.join(configs['configs_path'], '{0}_config.json'.format(app))
-    #         app_configs = parse_configs_file({'config_file': app_configs_file_path})
-    #
-    #         setup_database_environment_path(app_configs['db_root_path'], configs['environment'])
-    #         onboarder = ApplicationOnboarder(configs['configs_path'], app, configs['environment'])
-    #         onboarder.deploy()
-    #
-    # # TODO on-boarding data sources
-    # if configs['data_sources']:
-    #     add_data_source('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data', configs['environment'], 'FML', os.path.join('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/configs', 'fml_data_source_config.json'))
-    add_data_source('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data', configs['environment'], 'FML', os.path.join('/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/configs', 'fml_data_source_config.json'))
+    if configs['applications']:
+        for app in configs['applications'].split(','):
+            app = app.lower()
+            app_configs_file_path = os.path.join(configs['configs_root_path'], '{0}_config.json'.format(app))
+            app_configs = parse_configs_file({'config_file': app_configs_file_path})
+            setup_database_environment_path(app_configs['db_root_path'], app_configs_file_path, app_configs['schema'], configs['environment'])
+            onboarder = ApplicationOnboarder(configs['configs_root_path'], app, configs['environment'])
+            onboarder.deploy()
 
     return 0
 

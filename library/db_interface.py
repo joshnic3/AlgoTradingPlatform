@@ -2,35 +2,41 @@ import os
 
 import sqlite3
 
-from library.file_utils import get_environment_specific_path
-from library.file_utils import read_json_file
+from library.file_utils import get_environment_specific_path, parse_configs_file
+
+
+def initiate_database(db_root_path, db_name, schema, environment):
+    # app_configs = parse_configs_file(app_config_path)
+    db_path = get_environment_specific_path(db_root_path, environment)
+    db_file_path = os.path.join(db_path, '{0}.db'.format(db_name))
+    # Create db file if it doesnt already exist.
+    with open(db_file_path, 'w') as db_file:
+        pass
+    db = Database(db_root_path, db_name, environment)
+
+    for table in schema[db_name]:
+        sql = str(schema[db_name][table]).replace('%table%', table)
+        db.execute_sql(sql)
+
+    return db
 
 
 class Database:
 
-    def __init__(self, root_path, name, auto_create=False, environment='prod'):
-        # Read db configs.
-        _db_path = os.path.join(get_environment_specific_path(root_path, environment))
-        _db_configs = read_json_file(os.path.join(root_path, 'databases.json'))
-        _databases = dict(_db_configs['databases'])
-        if name not in _databases:
-            raise Exception('Database {0} not found in configs.'.format(name))
+    def __init__(self, db_root_path, name, environment):
         self._name = name
-        db_file_path = os.path.join(_db_path, '{}.db'.format(self._name))
+
+        # Check database file exists.
+        db_path = get_environment_specific_path(db_root_path, environment)
+        db_file_path = os.path.join(db_path, '{0}.db'.format(self._name))
         if not os.path.exists(db_file_path):
-            raise Exception('Database not found in path: {}'.format(root_path))
+            raise Exception('Database not found in path: {}'.format(db_path))
+
         self._connection = sqlite3.connect(db_file_path)
         self._cursor = self._connection.cursor()
         self._environment = environment
         self.tables = [i[0] for i in
                        self.execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")]
-        if auto_create:
-            # TODO Should be from application config
-            schema = _databases[name]['schema']
-            for required_table in schema:
-                if required_table not in self.tables:
-                    sql = schema[required_table].replace('%table%', required_table)
-                    self.execute_sql(sql)
 
     def __str__(self):
         return '[name: {0}, environment: {1}]'.format(self._name, self._environment)
