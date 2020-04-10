@@ -21,9 +21,10 @@ class ApplicationOnboarder:
     def deploy(self):
         db = initiate_database(self._app_configs['db_root_path'], self.name, self._app_configs['schema'], self._environment)
         self._write_setup_data_to_db(db)
-        self._generate_deployment_script()
         self._add_environment_to_app_config()
-        self._setup_cron_jobs()
+        if not self._environment == 'dev':
+            self._generate_deployment_script()
+            self._setup_cron_jobs()
 
     def _write_setup_data_to_db(self, db):
         # Setup test for data_loader
@@ -69,7 +70,7 @@ class ApplicationOnboarder:
 
         # Get environment information.
         repo_path = os.path.dirname(__file__)
-        interpreter = os.path.join(repo_path, 'venv/bin/python3.7')
+        interpreter = 'python3'
 
         # Create jobs.
         jobs = self._app_configs['jobs']
