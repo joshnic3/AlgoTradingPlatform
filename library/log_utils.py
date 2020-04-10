@@ -7,11 +7,11 @@ def get_log_file_path(root_path, script_name):
     today = datetime.datetime.now()
     today_str = today.strftime("%Y%m%d%H%M%S")
     file_name = '{0}_{1}.log'.format(script_name, today_str)
-    log_file_path_template = [root_path, 'logs', file_name]
+    log_file_path_template = [root_path, file_name]
     return os.path.join(*log_file_path_template)
 
 
-def setup_log(log_path):
+def setup_log(log_path, show_in_console=False):
     # Setup logging to file.
     logging.root.handlers = []
     log_format = '%(asctime)s: %(message)s'
@@ -19,11 +19,12 @@ def setup_log(log_path):
     log = logging.getLogger('')
 
     # Setup logging to console.
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter(log_format)
-    console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
+    if show_in_console:
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        formatter = logging.Formatter(log_format)
+        console.setFormatter(formatter)
+        logging.getLogger('').addHandler(console)
     return log
 
 

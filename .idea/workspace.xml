@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="70ef8c72-69c4-4dd9-9c5f-df52ed5560ac" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/../drive/configs/algo_trading_platform_config.json" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/../drive/configs/fml_data_source_config.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../drive/data/databases.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/library/strategies_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/data_loader.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/file_utils.py" beforeDir="false" />
@@ -337,14 +337,21 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/lib/python3.7/site-packages/setuptools-40.8.0-py3.7.egg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/lib/python3.7/site-packages/setuptools.pth" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" afterPath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/atp_data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/atp_data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/deploy_dev.sh" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_source_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/log_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/log_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/job_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -361,6 +368,7 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="UPDATE_TYPE" value="MERGE" />
   </component>
   <component name="ProjectId" id="1a01I8a01zBKK23EfQSYyoiktu7" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -389,7 +397,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.data_loader">
+  <component name="RunManager" selected="Python.onboarding_tool">
     <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -402,8 +410,8 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="-e dev -c $PROJECT_DIR$/../drive/configs/data_loader_config.json" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/atp_data_loader.py" />
+      <option name="PARAMETERS" value="-e dev -c $PROJECT_DIR$/../drive/configs/algo_trading_platform_config.json -j test_data_loader" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -424,7 +432,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/onboarding_tool.py" />
-      <option name="PARAMETERS" value="" />
+      <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -a algo_trading_platform" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -438,8 +446,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.onboarding_tool" />
+        <item itemvalue="Python.data_loader" />
       </list>
     </recent_temporary>
   </component>

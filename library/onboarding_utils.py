@@ -1,34 +1,23 @@
-import os
-
-from library.file_utils import get_environment_specific_path, add_dir, read_json_file
-from library.db_interface import Database
-
-# Seperated as may be used by flask service in future.
+from library.file_utils import add_dir, get_environment_specific_path, read_json_file
+from library.db_interface import Database, initiate_database
 
 
-def setup_database_environments(db_root_path):
-    db_configs = read_json_file(os.path.join(db_root_path, 'databases.json'))
-    databases = dict(db_configs['databases'])
-    environments = list(db_configs['environments'])
-    for environment in environments:
-        path = os.path.join(db_root_path, environment.lower())
-        add_dir(path, overwrite=True)
-        for database in databases:
-            db_file = os.path.join(db_root_path, environment, '{0}.db'.format(database))
-            with open(db_file, 'w') as fp:
-                pass
-            Database(db_root_path, database, auto_create=True, environment=environment.lower())
+def setup_database_environment_path(db_root_path, app_config_path, databases, environment):
+    path = get_environment_specific_path(db_root_path, environment.lower())
+    schema = read_json_file(app_config_path)['schema']
+    # Back up feature should not be used in case there are multiple applications.
+    add_dir(path, overwrite=True)
+    for database in databases:
+        initiate_database(db_root_path, database, schema, environment)
 
 
-def add_twap_required_tickers(environment, required_tickers):
-    root_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data'
-    db = Database(root_path, 'algo_trading_platform', True, environment=environment.lower())
+def add_twap_required_tickers(db, required_tickers):
+    # db = Database(db_root_path, 'algo_trading_platform', environment=environment.lower())
     for required_ticker in required_tickers:
         db.insert_row('twap_required_tickers', required_ticker)
 
 
-def add_data_source(environment, name, config):
-    root_path = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/data'
-    db = Database(root_path, 'data_sources', True, environment=environment.lower())
+def add_data_source(db, name, config):
+    # db = Database(db_root_path, 'data_sources', environment=environment.lower())
     values = ['0', name, config]
     db.insert_row('data_sources', values)
