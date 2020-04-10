@@ -40,7 +40,8 @@ def read_json_file(json_file_path):
         return json.load(json_file)
 
 
-def write_json_file(json_file_path, content):
+# TODO Implement, write and write over, edit_config_file needs to write over.
+def write_json_file(json_file_path, content, overwrite=False):
     if not os.path.exists(json_file_path):
         # Extract file type for exception
         raise Exception('File not found in path: {}'.format(json_file_path))
@@ -67,6 +68,10 @@ def parse_configs_file(cmdline_args):
 def edit_config_file(config_file, to_edit, new_value):
     configs = parse_configs_file({'config_file': config_file})
     configs[to_edit] = new_value
-    write_json_file(config_file, configs)
+    write_json_file(config_file, configs, overwrite=True)
 
 
+def parse_wildcards(template, wildcards):
+    for wildcard in wildcards:
+        template = template.replace(wildcard, wildcards[wildcard])
+    return template

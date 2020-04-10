@@ -114,8 +114,7 @@ def worker_func(log, worker_id, group, required_tickers, db):
     interval, count, source = group
     data_loader = TWAPDataLoader(source, required_tickers, db)
     completed = 0
-    # multiplier = 60
-    multiplier = 1
+    multiplier = 60
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
@@ -170,7 +169,6 @@ def main():
     # Initiate Job.
     job = Job(configs, db)
     job.log(log)
-
 
     # Prepare multiprocessing pool.
     cpu_count = multiprocessing.cpu_count()

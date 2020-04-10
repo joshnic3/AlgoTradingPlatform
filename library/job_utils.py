@@ -1,6 +1,4 @@
 import datetime
-import os
-import sys
 
 
 def get_run_count(db, script_name, version=None):

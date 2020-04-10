@@ -4,8 +4,13 @@ from library.db_interface import Database
 from library.file_utils import read_json_file
 
 
+# Data source db is constant so can be initiated in a function.
+def initiate_data_source_db(db_root_path, environment):
+    return Database(db_root_path, 'data_sources', environment)
+
+
 def get_data_source_configs(name, db_root_path, environment):
-    ds_db = Database(db_root_path, 'data_sources', environment)
+    ds_db = initiate_data_source_db(db_root_path, environment)
     condition = 'name="{0}"'.format(name)
     values = ['name', 'configs']
     results = ds_db.query_table('data_sources', condition, values)

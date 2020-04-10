@@ -2,22 +2,22 @@ import os
 
 import sqlite3
 
-from library.file_utils import get_environment_specific_path, parse_configs_file
+from library.file_utils import get_environment_specific_path, parse_wildcards
 
 
 def initiate_database(db_root_path, db_name, schema, environment):
-    # app_configs = parse_configs_file(app_config_path)
     db_path = get_environment_specific_path(db_root_path, environment)
     db_file_path = os.path.join(db_path, '{0}.db'.format(db_name))
+
     # Create db file if it doesnt already exist.
     with open(db_file_path, 'w') as db_file:
         pass
+
+    # Create tables.
     db = Database(db_root_path, db_name, environment)
-
     for table in schema[db_name]:
-        sql = str(schema[db_name][table]).replace('%table%', table)
-        db.execute_sql(sql)
-
+        sql = parse_wildcards(schema[db_name][table], {'%table%': table})
+        db.add_table(table, sql)
     return db
 
 
@@ -65,6 +65,10 @@ class Database:
                                               table,
                                               ' WHERE {};'.format(condition) if condition else ';')
         return self.execute_sql(sql)
+
+    def add_table(self, table, sql):
+        self.tables.append(table)
+        self.execute_sql(sql)
 
     def log(self, log):
         log.info('Connected to database: {0}'.format(self.__str__()))
