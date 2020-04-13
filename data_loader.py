@@ -9,7 +9,7 @@ from itertools import chain
 
 from library.db_interface import Database
 from library.file_utils import parse_configs_file
-from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr, log_end_status
+from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr
 from library.data_source_utils import TickerDataSource
 from library.job_utils import Job
 
@@ -39,12 +39,10 @@ class TWAP:
             return False
         return True
 
-    def add_tick(self, value):
-        now = datetime.datetime.now()
+    def add_tick(self, date_time, value):
+        self.ticks.append((date_time, float(value)))
         if self._is_stale(value):
-            self.ticks.append((now, float(value)))
             return self.symbol, 'STALE_TICKER'
-        self.ticks.append((now, float(value)))
         return None
 
     def calculate_twap(self):
@@ -74,10 +72,11 @@ class TWAPDataLoader:
         return self.source
 
     def get_ticker_values(self):
+        now = datetime.datetime.now()
         symbols = [t.symbol for t in self.twaps]
         results = self.source.request_tickers(symbols)
         for twap in self.twaps:
-            data_warnings = twap.add_tick(results[twap.symbol])
+            data_warnings = twap.add_tick(now, results[twap.symbol])
             if data_warnings:
                 self.data_warnings.append(data_warnings)
 
@@ -112,39 +111,40 @@ def worker_func(log, worker_id, group, required_tickers, db):
     return data_loader
 
 
-def parse_cmdline_args():
-    parser = optparse.OptionParser()
-    parser.add_option('-e', '--environment', dest="environment")
-    parser.add_option('-c', '--config_file', dest="config_file")
-    parser.add_option('-j', '--job_name', dest="job_name")
-    parser.add_option('--dry_run', action="store_true", default=False)
-    options, args = parser.parse_args()
-    return {
-        "environment": options.environment.lower(),
-        "config_file": options.config_file,
-        "job_name": options.job_name,
-        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
-        "dry_run": options.dry_run
-    }
-
-
 def required_tickers_for_group(db, group):
     condition = 'interval="{0}" AND count="{1}" AND source="{2}"'.format(*group)
     return db.query_table('twap_required_tickers', condition)
 
 
+def parse_cmdline_args(app_name):
+    parser = optparse.OptionParser()
+    parser.add_option('-e', '--environment', dest="environment")
+    parser.add_option('-r', '--root_path', dest="root_path")
+    parser.add_option('-j', '--job_name', dest="job_name", default=None)
+    parser.add_option('--dry_run', action="store_true", default=False)
+
+    options, args = parser.parse_args()
+    return parse_configs_file({
+        "app_name": app_name,
+        "environment": options.environment.lower(),
+        "root_path": options.root_path,
+        "job_name": options.job_name,
+        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
+        "dry_run": options.dry_run,
+    })
+
+
 def main():
     # Setup configs.
     global configs
-    cmdline_args = parse_cmdline_args()
-    configs = parse_configs_file(cmdline_args)
+    # cmdline_args = parse_cmdline_args()
+    # configs = parse_configs_file(cmdline_args)
+    configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
     log_path = get_log_file_path(configs['logs_root_path'], configs['script_name'])
-    log = setup_log(log_path, True if configs['environment'].lower() == 'dev' else False)
-    log_configs(cmdline_args, log)
-    if configs != cmdline_args:
-        log.info('Imported {0} additional config items from script config file'.format(len(configs)-len(cmdline_args)))
+    log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
+    log_configs(configs, log)
 
     # Setup db connection.
     db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
@@ -201,8 +201,8 @@ def main():
         status = 2 if data_warnings else 0
     else:
         status = 1
-    log_end_status(log, configs['script_name'], status)
-    job.finished()
+
+    job.finished(log, status)
     return status
 
 

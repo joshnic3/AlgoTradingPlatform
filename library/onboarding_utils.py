@@ -12,12 +12,15 @@ def setup_database_environment_path(db_root_path, app_config_path, databases, en
 
 
 def add_twap_required_tickers(db, required_tickers):
-    # db = Database(db_root_path, 'algo_trading_platform', environment=environment.lower())
     for required_ticker in required_tickers:
         db.insert_row('twap_required_tickers', required_ticker)
 
 
+def add_strategy(db, name, args, function, risk):
+    values = [0, name.lower(), args, function.lower(), str(risk)]
+    db.insert_row('strategies', values)
+
+
 def add_data_source(db, name, config):
-    # db = Database(db_root_path, 'data_sources', environment=environment.lower())
     values = ['0', name, config]
     db.insert_row('data_sources', values)

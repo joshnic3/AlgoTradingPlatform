@@ -66,6 +66,12 @@ class Database:
                                               ' WHERE {};'.format(condition) if condition else ';')
         return self.execute_sql(sql)
 
+    def get_one_row(self, table, condition, columns=None):
+        results = self.query_table(table, condition, columns)
+        if len(results) > 1:
+            raise Exception('Database query expected only one row, got {0}.'.format(len(results)))
+        return results[0]
+
     def add_table(self, table, sql):
         self.tables.append(table)
         self.execute_sql(sql)

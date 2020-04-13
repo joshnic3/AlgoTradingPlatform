@@ -1,31 +1,32 @@
-import datetime
-from statistics import mean
-
-from library.strategies_utils import get_latest_value, get_values_in_datetime_range, Signal
+import strategies.strategies_utils as utils
 
 
-def basic_strategy(db):
-    symbol = 'NMR'
-    now = datetime.datetime.now()
-    five_minutes_ago = now - datetime.timedelta(minutes=5)
+def basic(context, symbol):
+    from statistics import mean
+    five_minutes_ago = utils.time_minutes_ago(context, 50)
 
-    # Fetch data.
-    previous_values = get_values_in_datetime_range(db, symbol, five_minutes_ago, now)[:-1]
-    latest_value = get_latest_value(db, symbol)
+    # Fetch static all data together.
+    previous_values = utils.get_values_in_datetime_range(context, symbol, five_minutes_ago, context.now)[:-1]
+    latest_value = utils.get_latest_value(context, symbol)
 
     # Calculate values.
     mean_value = mean(previous_values)
     threshold = mean_value * 0.1
 
     # Generate signal.
-    signal_id = 0
-    signal = Signal(signal_id)
     if latest_value > mean_value + threshold:
-        signal.sell(symbol, latest_value)
+        context.signal.sell(symbol, latest_value)
     elif latest_value < mean_value - threshold:
-        signal.buy(symbol, latest_value)
+        context.signal.buy(symbol, latest_value)
     else:
-        signal.hold(symbol)
+        context.signal.hold(symbol)
 
-    return signal
+    return context.signal
 
+
+def pairs(context, symbol):
+    from statistics import mean
+    current_value = utils.get_current_value(context, symbol)
+    context.signal.buy(symbol, current_value)
+    # context.signal.hold(symbol)
+    return context.signal

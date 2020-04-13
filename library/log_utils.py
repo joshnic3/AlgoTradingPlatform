@@ -29,7 +29,7 @@ def setup_log(log_path, show_in_console=False):
 
 
 def log_configs(configs, log):
-    config_strs = ['Config "{0}": {1}'.format(str(key), str(configs[key])) for key in configs.keys()]
+    config_strs = ['Config "{0}": {1}'.format(str(k), str(configs[k])) for k in configs.keys() if configs[k]]
     for config_str in config_strs:
         log.info(config_str)
 
@@ -37,14 +37,4 @@ def log_configs(configs, log):
 def log_hr(log):
     log.info('-----------------------------------------------------')
 
-
-def log_end_status(log, script_name, status):
-    status_map = {0: "SUCCESSFULLY",
-                  1: "with ERRORS",
-                  2: "with WARNINGS"}
-
-    if status in status_map:
-        log.info('{0} finished {1}!'.format(script_name, status_map[status]))
-    else:
-        log.info('{0} failed with status {1}!'.format(script_name, status))
 
