@@ -10,27 +10,10 @@ from itertools import chain
 from library.db_interface import Database
 from library.file_utils import parse_configs_file
 from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr, log_end_status
-from library.data_source_utils import DataSource
+from library.data_source_utils import TickerDataSource
 from library.job_utils import Job
 
 configs = {}
-
-
-class TickerDataSource(DataSource):
-
-    def __init__(self, name):
-        DataSource.__init__(self, name, configs['db_root_path'], configs['environment'])
-
-    def _extract_data(self, result):
-        # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.
-        return dict(zip([r[self._configs['symbol_key']] for r in result], [r[self._configs['value_key']] for r in result]))
-
-    def request_tickers(self, symbols):
-        symbols_str = self._configs['delimiter'].join(symbols) if len(symbols) > 1 else symbols[0]
-        wildcard = {self._configs['wildcards']['symbols']: symbols_str}
-        url = self._prepare_api_call_url(self._configs['request_template'], wildcard)
-        result = self._call_api_return_as_dict(url)
-        return self._extract_data(result['companiesPriceList'])
 
 
 class TWAP:
@@ -81,8 +64,8 @@ class TWAP:
 
 class TWAPDataLoader:
 
-    def __init__(self, source, tickers, db):
-        self.source = TickerDataSource(source)
+    def __init__(self, source, tickers, db, configs):
+        self.source = TickerDataSource(source, configs['db_root_path'], configs['environment'],)
         self.twaps = [TWAP(t[1]) for t in tickers]
         self.data_warnings = []
         self._db = db
@@ -112,9 +95,10 @@ class TWAPDataLoader:
 def worker_func(log, worker_id, group, required_tickers, db):
     # Create a new worker process for each group.
     interval, count, source = group
-    data_loader = TWAPDataLoader(source, required_tickers, db)
+    data_loader = TWAPDataLoader(source, required_tickers, db, configs)
     completed = 0
-    multiplier = 60
+    # multiplier = 60
+    multiplier = 1
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
