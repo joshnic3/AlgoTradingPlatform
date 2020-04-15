@@ -1,4 +1,4 @@
-import strategies.strategies_utils as utils
+import strategy.strategy_utils as utils
 
 
 def basic(context, symbol):

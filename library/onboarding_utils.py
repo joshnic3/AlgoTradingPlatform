@@ -18,7 +18,7 @@ def add_twap_required_tickers(db, required_tickers):
 
 def add_strategy(db, name, risk_profile, args, function):
     values = [0, name.lower(), risk_profile, args, function.lower()]
-    db.insert_row('strategies', values)
+    db.insert_row('strategy', values)
 
 
 def add_data_source(db, name, config):

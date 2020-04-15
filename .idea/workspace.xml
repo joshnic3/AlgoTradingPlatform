@@ -338,16 +338,10 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategies/strategies.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategies/strategies_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategies/strategy_methods.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_methods.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_batch.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_batch.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -363,7 +357,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
     <option name="UPDATE_TYPE" value="MERGE" />
   </component>
@@ -517,11 +511,6 @@
           <url>file://$PROJECT_DIR$/library/onboarding_utils.py</url>
           <line>30</line>
           <option name="timeStamp" value="2" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/strategy_batch.py</url>
-          <line>407</line>
-          <option name="timeStamp" value="59" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

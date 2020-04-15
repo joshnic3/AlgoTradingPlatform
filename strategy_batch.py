@@ -3,7 +3,7 @@ import datetime
 import optparse
 import os
 
-import strategies.strategy_methods as strategy_methods
+import strategy.strategy_methods as strategy_methods
 from library.db_interface import Database
 from library.data_source_utils import TickerDataSource
 from library.file_utils import parse_configs_file
@@ -15,7 +15,8 @@ from library.job_utils import Job
 class Exchange:
 
     def __init__(self):
-        pass
+        # TODO decide how to implement commissions.
+        self.commission = 0.1
 
     def ask(self, symbol, units, target_value):
         executed_trade = self._execute_trade('ask', symbol, units, target_value)
@@ -30,11 +31,9 @@ class Exchange:
 
 class ExchangeSimulator(Exchange):
 
-    def __init__(self, db, out_file_path=None):
+    def __init__(self, db, out_path=None):
         Exchange.__init__(self)
-        self._out_file_path = out_file_path
-        # TODO decide how to implement commissions.
-        self.commission = 0.1
+        self._out_file_path = os.path.join(out_path, 'trade_requests.csv')
 
     def _execute_trade(self, trade_type, symbol, units, target_value):
         # Write trade to CSV path if set.
@@ -49,15 +48,11 @@ class ExchangeSimulator(Exchange):
 
     # TODO make this a bit smarter. Probs can get actual values.
     def get_liquidity(self, symbol):
-        # return self.api.get_liquidity(symbol)
         return 2000.0
 
     # TODO make this a bit smarter. Probs can get actual values.
     def get_current_ask_price(self, symbol):
         return float(14.83)
-
-
-
 
 
 # TODO Implement ExchangeInterface.
@@ -196,7 +191,7 @@ class SignalGenerator:
         return signal
 
     def evaluate_strategies(self, strategies_list):
-        # Evaluate strategies.
+        # Evaluate strategy.
         #   Might want to evaluate concurrently?
         signals = [self._evaluate_strategy(s) for s in strategies_list]
         return signals
@@ -320,7 +315,7 @@ def parse_cmdline_args(app_name):
     parser.add_option('--dry_run', action="store_true", default=False)
 
     # Initiate script specific args.
-    parser.add_option('-s', '--strategies', dest="strategies")
+    parser.add_option('-s', '--strategy', dest="strategy")
     parser.add_option('-d', '--data_source', dest="data_source")
     # Specify "simulate" or "execute" modes.
     parser.add_option('-m', '--mode', dest="mode")
@@ -340,7 +335,7 @@ def parse_cmdline_args(app_name):
 
         # Parse script specific args.
         "data_source": options.data_source,
-        "strategies": options.strategies.lower(),
+        "strategy": options.strategy.lower(),
         "mode": options.mode,
         "run_date": options.run_date,
         "run_time": options.run_time
@@ -351,7 +346,6 @@ def main():
     # Setup configs.
     global configs
     configs = parse_cmdline_args('algo_trading_platform')
-    # configs = parse_configs_file(cmdline_args)
 
     # Setup logging.
     log_path = get_log_file_path(configs['logs_root_path'], configs['script_name'])
@@ -369,9 +363,9 @@ def main():
     # Setup data source if one is specified in the args.
     ds = TickerDataSource(configs['data_source'], configs['db_root_path'], configs['environment']) if configs['data_source'] else None
 
-    # Evaluate strategies [Signals], just this section can be used to build a strategy function test tool.
+    # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     sg = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
-    strategies_list = configs['strategies'].split(',')
+    strategies_list = configs['strategy'].split(',')
     signals = sg.evaluate_strategies(strategies_list)
 
     # Check for conflicting signals [Signals].
@@ -382,12 +376,9 @@ def main():
     # Calculate risk profile {string(strategy name): float(risk value)}.
     risk_profile = generate_risk_profile(db, strategies_list)
 
-    # Read in portfolio.
-    portfolio = None
-
     # Initiate exchange.
     if configs['mode'] == 'simulate':
-        exchange = ExchangeSimulator(db, out_file_path='/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/trade_requests.csv', )
+        exchange = ExchangeSimulator(db, out_path='/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive', )
     elif configs['mode'] == 'execute':
         exchange = ExchangeInterface(db)
     else:
