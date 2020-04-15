@@ -4,7 +4,7 @@ import optparse
 
 from crontab import CronTab
 
-from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source, add_strategy
+from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source, add_strategy, add_risk_profile, add_portfolio, add_assets
 from library.file_utils import edit_config_file, parse_configs_file, parse_wildcards
 from library.db_interface import initiate_database
 from library.data_source_utils import initiate_data_source_db
@@ -35,11 +35,15 @@ class ApplicationOnboarder:
 
         # DB can be passed in here, will be far neater.
         add_twap_required_tickers(db, required_tickers)
-        add_strategy(db, 'basic_test', 'NMR', 'basic', 15)
-        add_strategy(db, 'pairs_test', 'NMR', 'pairs', 4)
+        add_strategy(db, 'basic_test', 0, 'NMR', 'basic')
+        add_strategy(db, 'basic_test_jpm', 0, 'JPM', 'basic')
         ds_db = initiate_data_source_db(self._app_configs['db_root_path'], self._environment.lower())
         add_data_source(ds_db, 'FML',
                         os.path.join(self._app_configs['configs_root_path'], 'fml_data_source_config.json'))
+        add_risk_profile(db, [10.0, 200.0])
+        add_portfolio(db, 'test_portfolio', 'test_exchange', '69420.00')
+        add_assets(db, '0', 'NMR', 20)
+        add_assets(db, '0', 'JPM', 13)
 
     def _generate_deployment_script(self):
         file_path = 'deploy_{}.sh'.format(self._environment)

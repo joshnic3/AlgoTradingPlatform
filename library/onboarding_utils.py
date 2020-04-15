@@ -16,11 +16,26 @@ def add_twap_required_tickers(db, required_tickers):
         db.insert_row('twap_required_tickers', required_ticker)
 
 
-def add_strategy(db, name, args, function, risk):
-    values = [0, name.lower(), args, function.lower(), str(risk)]
+def add_strategy(db, name, risk_profile, args, function):
+    values = [0, name.lower(), risk_profile, args, function.lower()]
     db.insert_row('strategies', values)
 
 
 def add_data_source(db, name, config):
     values = ['0', name, config]
     db.insert_row('data_sources', values)
+
+
+def add_risk_profile(db, values):
+    values = [0] + values
+    db.insert_row('risk_profiles', values)
+
+
+def add_portfolio(db, name, exchange_name, capital):
+    values = ['0', name, exchange_name, capital]
+    db.insert_row('portfolios', values)
+
+
+def add_assets(db, portfolio_id, symbol, units):
+    values = ['0', portfolio_id, symbol, units]
+    db.insert_row('assets', values)
