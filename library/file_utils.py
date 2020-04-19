@@ -50,7 +50,8 @@ def write_json_file(json_file_path, content, overwrite=False):
 def parse_configs_file(cmdline_args):
     if isinstance(cmdline_args, dict):
         # Read script configurations into dict.
-        configs = read_json_file(cmdline_args['config_file'])
+        config_file_name = '{0}_config.json'.format(cmdline_args['app_name'])
+        configs = read_json_file(os.path.join(cmdline_args["root_path"], 'configs', config_file_name))
 
         # Load cmdline args into configurations dict.
         configs = dict(configs)

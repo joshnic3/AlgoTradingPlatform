@@ -1,36 +1,19 @@
-import sys
-import os
 import datetime
-import time
 import multiprocessing
 import optparse
-from multiprocessing.pool import ThreadPool
+import os
+import sys
+import time
 from itertools import chain
+from multiprocessing.pool import ThreadPool
 
-from library.db_interface import Database
+from library.ds_utils import TickerDataSource
+from library.db_utils import Database, generate_unique_id
 from library.file_utils import parse_configs_file
-from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr, log_end_status
-from library.data_source_utils import DataSource
-from library.job_utils import Job
+from library.job_utils import Job, get_job_phase_breakdown
+from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr
 
 configs = {}
-
-
-class TickerDataSource(DataSource):
-
-    def __init__(self, name):
-        DataSource.__init__(self, name, configs['db_root_path'], configs['environment'])
-
-    def _extract_data(self, result):
-        # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.
-        return dict(zip([r[self._configs['symbol_key']] for r in result], [r[self._configs['value_key']] for r in result]))
-
-    def request_tickers(self, symbols):
-        symbols_str = self._configs['delimiter'].join(symbols) if len(symbols) > 1 else symbols[0]
-        wildcard = {self._configs['wildcards']['symbols']: symbols_str}
-        url = self._prepare_api_call_url(self._configs['request_template'], wildcard)
-        result = self._call_api_return_as_dict(url)
-        return self._extract_data(result['companiesPriceList'])
 
 
 class TWAP:
@@ -56,12 +39,10 @@ class TWAP:
             return False
         return True
 
-    def add_tick(self, value):
-        now = datetime.datetime.now()
+    def add_tick(self, date_time, value):
+        self.ticks.append((date_time, float(value)))
         if self._is_stale(value):
-            self.ticks.append((now, float(value)))
             return self.symbol, 'STALE_TICKER'
-        self.ticks.append((now, float(value)))
         return None
 
     def calculate_twap(self):
@@ -71,8 +52,9 @@ class TWAP:
         return self.twap
 
     def save_to_db(self, db):
+        twap_id = generate_unique_id(self.symbol)
         times = [t[0] for t in self.ticks]
-        values = [0, min(times).strftime('%Y%m%d%H%M%S'), max(times).strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
+        values = [twap_id, min(times).strftime('%Y%m%d%H%M%S'), max(times).strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
         db.insert_row('twaps', values)
 
     def log_twap(self, log):
@@ -82,8 +64,8 @@ class TWAP:
 class TWAPDataLoader:
 
     def __init__(self, source, tickers, db):
-        self.source = TickerDataSource(source)
-        self.twaps = [TWAP(t[1]) for t in tickers]
+        self.source = TickerDataSource(db, source)
+        self.twaps = [TWAP(t[0]) for t in tickers]
         self.data_warnings = []
         self._db = db
 
@@ -91,10 +73,11 @@ class TWAPDataLoader:
         return self.source
 
     def get_ticker_values(self):
+        now = datetime.datetime.now()
         symbols = [t.symbol for t in self.twaps]
         results = self.source.request_tickers(symbols)
         for twap in self.twaps:
-            data_warnings = twap.add_tick(results[twap.symbol])
+            data_warnings = twap.add_tick(now, results[twap.symbol])
             if data_warnings:
                 self.data_warnings.append(data_warnings)
 
@@ -109,12 +92,13 @@ class TWAPDataLoader:
                 log.info(twap.__str__())
 
 
-def worker_func(log, worker_id, group, required_tickers, db):
+def worker_func(log, worker_id, group, data_loader):
     # Create a new worker process for each group.
-    interval, count, source = group
-    data_loader = TWAPDataLoader(source, required_tickers, db)
+    source, interval, count = group
+
     completed = 0
     multiplier = 60
+    # multiplier = 1
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
@@ -128,39 +112,42 @@ def worker_func(log, worker_id, group, required_tickers, db):
     return data_loader
 
 
-def parse_cmdline_args():
-    parser = optparse.OptionParser()
-    parser.add_option('-e', '--environment', dest="environment")
-    parser.add_option('-c', '--config_file', dest="config_file")
-    parser.add_option('-j', '--job_name', dest="job_name")
-    parser.add_option('--dry_run', action="store_true", default=False)
-    options, args = parser.parse_args()
-    return {
-        "environment": options.environment.lower(),
-        "config_file": options.config_file,
-        "job_name": options.job_name,
-        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
-        "dry_run": options.dry_run
-    }
-
-
 def required_tickers_for_group(db, group):
     condition = 'interval="{0}" AND count="{1}" AND source="{2}"'.format(*group)
     return db.query_table('twap_required_tickers', condition)
 
 
+def parse_cmdline_args(app_name):
+    parser = optparse.OptionParser()
+    parser.add_option('-e', '--environment', dest="environment")
+    parser.add_option('-r', '--root_path', dest="root_path")
+    parser.add_option('-s', '--strategy', dest="strategy")
+    parser.add_option('-j', '--job_name', dest="job_name", default=None)
+    parser.add_option('--dry_run', action="store_true", default=False)
+
+    options, args = parser.parse_args()
+    return parse_configs_file({
+        "app_name": app_name,
+        "environment": options.environment.lower(),
+        "root_path": options.root_path,
+        "strategy": options.strategy,
+        "job_name": options.job_name,
+        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
+        "dry_run": options.dry_run,
+    })
+
+
 def main():
     # Setup configs.
     global configs
-    cmdline_args = parse_cmdline_args()
-    configs = parse_configs_file(cmdline_args)
+    # cmdline_args = parse_cmdline_args()
+    # configs = parse_configs_file(cmdline_args)
+    configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
     log_path = get_log_file_path(configs['logs_root_path'], configs['script_name'])
-    log = setup_log(log_path, True if configs['environment'].lower() == 'dev' else False)
-    log_configs(cmdline_args, log)
-    if configs != cmdline_args:
-        log.info('Imported {0} additional config items from script config file'.format(len(configs)-len(cmdline_args)))
+    log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
+    log_configs(configs, log)
 
     # Setup db connection.
     db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
@@ -175,19 +162,23 @@ def main():
     pool = ThreadPool(cpu_count)
 
     # Count required tickers.
-    required_tickers = db.execute_sql('SELECT DISTINCT id FROM twap_required_tickers;')
+    strategy_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[0]
+    required_tickers = db.execute_sql('SELECT symbol FROM twap_required_tickers WHERE strategy_id="{0}";'.format(strategy_id))
     log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
     # Get TWAPS.
+    job.update_status('Generating required TWAPS')
     groups = [r for r in db.execute_sql('SELECT DISTINCT interval, count, source FROM twap_required_tickers;')]
     log.info('Grouped into {0} data loader(s)'.format(len(groups)))
     log_hr(log)
-    workers = [pool.apply_async(worker_func, args=(log, groups.index(g), g, required_tickers_for_group(db, g), db, ))
-               for g in groups]
+    workers = [pool.apply_async(worker_func,
+                                args=(log, groups.index(g), g, TWAPDataLoader(g[0], required_tickers, db), )
+                                ) for g in groups]
     pool.close()
     pool.join()
 
     # Read results.
+    job.update_status('Processing TWAPS')
     data_loaders = [w.get() for w in workers]
     retrieved_twaps = [i for i in chain.from_iterable([dl.twaps for dl in data_loaders])]
     data_warnings = [i for i in chain.from_iterable([dl.data_warnings for dl in data_loaders])]
@@ -217,8 +208,9 @@ def main():
         status = 2 if data_warnings else 0
     else:
         status = 1
-    log_end_status(log, configs['script_name'], status)
-    job.finished()
+
+    job.finished(log, status)
+    print(get_job_phase_breakdown(db, job.id))
     return status
 
 

@@ -22,37 +22,77 @@ def is_script_new(db, script_name):
     return False
 
 
+def get_job_phase_breakdown(db, job_id):
+    # TODO Handle jobs finishing unexpectedly.
+    #   If there is no 'TERMINATED' phase the job didnt finish properly.
+    phases = db.query_table('jobs', 'id="{0}"'.format(job_id))
+
+    phase_breakdown = []
+    for phase, next_phase in zip(phases, phases[1:]):
+        start_time = datetime.datetime.strptime(phase[4], '%Y%m%d%H%M%S')
+        end_time = datetime.datetime.strptime(next_phase[4], '%Y%m%d%H%M%S')
+        phase_info = phase[5]
+        next_phase_info = next_phase[5]
+        # TODO Make this more accurate storing by string phase date times in memory.
+        phase = ((end_time - start_time).total_seconds(), phase_info)
+        phase_breakdown.append(phase)
+        if next_phase_info == 'TERMINATED':
+            return phase_breakdown
+
+    # TODO Calculate as percentage and pp.
+    total_time = sum([p[0] for p in phase_breakdown])
+    return phase_breakdown
+
+
 class Job:
 
     def __init__(self, configs, db):
         self.name = configs['job_name']
-        self.script = configs['jobs'][self.name]['script']
+        self.script = configs['script_name']
         self.start_time = datetime.datetime.now()
         self.status = None
 
         self._db = db
-        self._parameters = configs['jobs'][self.name]['args']
-        self._id = str(abs(hash(self.name + self.start_time.strftime('%Y%m%d%H%M%S'))))
+        self._parameters = ''
+        self.id = str(abs(hash(self.name + self.start_time.strftime('%Y%m%d%H%M%S'))))
         self._version = configs['version']
         self._set_status('INITIATED')
 
     def __str__(self):
         is_new = is_script_new(self._db, self.script)
-        return '[id: {0}, job: {1}, script: {2}, version: {3}]'.format(self._id,
-                                                                       self.name,
-                                                                       self.script,
+        return '[id: {0}, job: {1}, script: {2}, code version: {3}]'.format(self.id,
+                                                                            self.name,
+                                                                            self.script,
                                                                        '{0}{1}'.format(self._version, '(NEW)' if is_new else ''))
 
     def _set_status(self, status):
         self.status = status
-        values = [self._id, self.name, self.script, self._version, self._parameters, datetime.datetime.now().strftime('%Y%m%d%H%M%S'), self.status]
+        values = [self.id, self.name, self.script, self._version, datetime.datetime.now().strftime('%Y%m%d%H%M%S'), self.status]
         self._db.insert_row('jobs', values)
 
     def log(self, log):
         log.info('Starting job: {0}'.format(self.__str__()))
 
     def update_status(self, status):
-        self._set_status(status)
+        self._set_status(status.upper())
 
-    def finished(self):
+    def finished(self, log=None, status=None):
         self.update_status('TERMINATED')
+        if log:
+            end_time = datetime.datetime.now()
+            run_time = (end_time - self.start_time).total_seconds()
+
+            if status:
+                status_map = {0: "SUCCESSFULLY",
+                              1: "with ERRORS",
+                              2: "with WARNINGS"}
+
+                if status in status_map:
+                    log.info('Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
+                else:
+                    log.info('Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
+                                                                                        status))
+            else:
+                log.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))
+
+
