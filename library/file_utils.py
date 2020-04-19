@@ -2,8 +2,7 @@ import os
 import shutil
 import json
 import datetime
-import optparse
-import sys
+
 
 def _check_environment_exists(env):
     # Dont know how to handle this correctly yet.

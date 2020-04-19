@@ -338,9 +338,17 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/ds_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/job_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategies/strategies_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategies/strategy_methods.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_methods.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy/strategy_methods.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy/strategy_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_batch.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_batch.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -403,7 +411,28 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -j test_data_loader" />
+      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -j basic_strategy_data_loader -s basic_strategy" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="exchange_test" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="repo" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/exchange_test.py" />
+      <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -445,7 +474,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/strategy_batch.py" />
-      <option name="PARAMETERS" value="-e dev -j test_strategy_batch -r $PROJECT_DIR$/../drive -d FML -s basic_test,basic_test_jpm -m simulate" />
+      <option name="PARAMETERS" value="-e dev -j basic_strategy_strategy_batch -r $PROJECT_DIR$/../drive -d FML -s basic_strategy -m simulate" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -457,12 +486,14 @@
       <item itemvalue="Python.data_loader" />
       <item itemvalue="Python.onboarding_tool" />
       <item itemvalue="Python.strategy_batch" />
+      <item itemvalue="Python.exchange_test" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.strategy_batch" />
         <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.onboarding_tool" />
+        <item itemvalue="Python.exchange_test" />
       </list>
     </recent_temporary>
   </component>
@@ -508,9 +539,9 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/library/onboarding_utils.py</url>
-          <line>30</line>
-          <option name="timeStamp" value="2" />
+          <url>file://$PROJECT_DIR$/exchange_test.py</url>
+          <line>43</line>
+          <option name="timeStamp" value="59" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

@@ -1,17 +1,17 @@
-import sys
-import os
 import datetime
-import time
 import multiprocessing
 import optparse
-from multiprocessing.pool import ThreadPool
+import os
+import sys
+import time
 from itertools import chain
+from multiprocessing.pool import ThreadPool
 
-from library.db_interface import Database
+from library.ds_utils import TickerDataSource
+from library.db_utils import Database, generate_unique_id
 from library.file_utils import parse_configs_file
+from library.job_utils import Job, get_job_phase_breakdown
 from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr
-from library.data_source_utils import TickerDataSource
-from library.job_utils import Job
 
 configs = {}
 
@@ -52,8 +52,9 @@ class TWAP:
         return self.twap
 
     def save_to_db(self, db):
+        twap_id = generate_unique_id(self.symbol)
         times = [t[0] for t in self.ticks]
-        values = [0, min(times).strftime('%Y%m%d%H%M%S'), max(times).strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
+        values = [twap_id, min(times).strftime('%Y%m%d%H%M%S'), max(times).strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
         db.insert_row('twaps', values)
 
     def log_twap(self, log):
@@ -62,9 +63,9 @@ class TWAP:
 
 class TWAPDataLoader:
 
-    def __init__(self, source, tickers, db, configs):
-        self.source = TickerDataSource(source, configs['db_root_path'], configs['environment'],)
-        self.twaps = [TWAP(t[1]) for t in tickers]
+    def __init__(self, source, tickers, db):
+        self.source = TickerDataSource(db, source)
+        self.twaps = [TWAP(t[0]) for t in tickers]
         self.data_warnings = []
         self._db = db
 
@@ -91,13 +92,13 @@ class TWAPDataLoader:
                 log.info(twap.__str__())
 
 
-def worker_func(log, worker_id, group, required_tickers, db):
+def worker_func(log, worker_id, group, data_loader):
     # Create a new worker process for each group.
-    interval, count, source = group
-    data_loader = TWAPDataLoader(source, required_tickers, db, configs)
+    source, interval, count = group
+
     completed = 0
-    # multiplier = 60
-    multiplier = 1
+    multiplier = 60
+    # multiplier = 1
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
@@ -120,6 +121,7 @@ def parse_cmdline_args(app_name):
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
+    parser.add_option('-s', '--strategy', dest="strategy")
     parser.add_option('-j', '--job_name', dest="job_name", default=None)
     parser.add_option('--dry_run', action="store_true", default=False)
 
@@ -128,6 +130,7 @@ def parse_cmdline_args(app_name):
         "app_name": app_name,
         "environment": options.environment.lower(),
         "root_path": options.root_path,
+        "strategy": options.strategy,
         "job_name": options.job_name,
         "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
         "dry_run": options.dry_run,
@@ -159,19 +162,23 @@ def main():
     pool = ThreadPool(cpu_count)
 
     # Count required tickers.
-    required_tickers = db.execute_sql('SELECT DISTINCT id FROM twap_required_tickers;')
+    strategy_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[0]
+    required_tickers = db.execute_sql('SELECT symbol FROM twap_required_tickers WHERE strategy_id="{0}";'.format(strategy_id))
     log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
     # Get TWAPS.
+    job.update_status('Generating required TWAPS')
     groups = [r for r in db.execute_sql('SELECT DISTINCT interval, count, source FROM twap_required_tickers;')]
     log.info('Grouped into {0} data loader(s)'.format(len(groups)))
     log_hr(log)
-    workers = [pool.apply_async(worker_func, args=(log, groups.index(g), g, required_tickers_for_group(db, g), db, ))
-               for g in groups]
+    workers = [pool.apply_async(worker_func,
+                                args=(log, groups.index(g), g, TWAPDataLoader(g[0], required_tickers, db), )
+                                ) for g in groups]
     pool.close()
     pool.join()
 
     # Read results.
+    job.update_status('Processing TWAPS')
     data_loaders = [w.get() for w in workers]
     retrieved_twaps = [i for i in chain.from_iterable([dl.twaps for dl in data_loaders])]
     data_warnings = [i for i in chain.from_iterable([dl.data_warnings for dl in data_loaders])]
@@ -203,6 +210,7 @@ def main():
         status = 1
 
     job.finished(log, status)
+    print(get_job_phase_breakdown(db, job.id))
     return status
 
 

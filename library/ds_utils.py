@@ -1,6 +1,6 @@
 import requests
 
-from library.db_interface import Database
+from library.db_utils import Database
 from library.file_utils import read_json_file
 
 
@@ -9,23 +9,12 @@ def initiate_data_source_db(db_root_path, environment):
     return Database(db_root_path, 'data_sources', environment)
 
 
-def get_data_source_configs(name, db_root_path, environment):
-    ds_db = initiate_data_source_db(db_root_path, environment)
-    condition = 'name="{0}"'.format(name)
-    values = ['name', 'configs']
-    results = ds_db.query_table('data_sources', condition, values)
-    if results:
-        config_files = dict(results)
-        return config_files[name]
-    raise Exception('No data source "{0}" found in database.'.format(name))
-
-
 class DataSource:
 
-    def __init__(self, name, db_root_path, environment):
+    def __init__(self, db, name):
         self.name = name
-        data_source_configs_file = get_data_source_configs(self.name, db_root_path, environment)
-        self._configs = read_json_file(data_source_configs_file)
+        row = db.get_one_row('data_sources', 'name="{0}"'.format(name))
+        self._configs = read_json_file(row[2])
 
     def __str__(self):
         return self.name
@@ -58,8 +47,8 @@ class DataSource:
 
 class TickerDataSource(DataSource):
 
-    def __init__(self, name, db_root_path, environment):
-        DataSource.__init__(self, name, db_root_path, environment)
+    def __init__(self, db, name):
+        DataSource.__init__(self, db, name)
 
     def _extract_data(self, result):
         # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.

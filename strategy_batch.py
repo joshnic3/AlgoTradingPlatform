@@ -1,65 +1,77 @@
-import sys
 import datetime
+import json
 import optparse
 import os
+import sys
+import time
 
-import strategy.strategy_methods as strategy_methods
-from library.db_interface import Database
-from library.data_source_utils import TickerDataSource
+import requests
+
+import strategy.strategy_functions as strategy_functions
+from library.db_utils import Database
+from library.ds_utils import TickerDataSource
 from library.file_utils import parse_configs_file
-from library.log_utils import get_log_file_path, setup_log, log_configs, log_hr
-from library.job_utils import Job
+from library.job_utils import Job, get_job_phase_breakdown
+from library.log_utils import get_log_file_path, setup_log, log_configs
 
 
-# TODO Implement Exchange.
-class Exchange:
+class AlpacaInterface:
+    # TODO Handle response errors.
 
-    def __init__(self):
-        # TODO decide how to implement commissions.
-        self.commission = 0.1
+    def __init__(self, key_id, secret_key, simulator=False):
+        if simulator:
+            base_url = 'https://paper-api.alpaca.markets'
 
-    def ask(self, symbol, units, target_value):
-        executed_trade = self._execute_trade('ask', symbol, units, target_value)
-        monies_returned = units * self.get_current_ask_price(symbol)
-        return executed_trade, monies_returned
+        self.headers = {'APCA-API-KEY-ID': key_id, 'APCA-API-SECRET-KEY': secret_key}
+        self.api = {
+            'ACCOUNT': '{0}/v2/account'.format(base_url),
+            'ORDERS': '{0}/v2/orders'.format(base_url),
+            'POSITIONS': '{0}/v2/positions'.format(base_url),
+            'CLOCK': '{0}/v2/clock'.format(base_url)
+        }
 
-    def bid(self, symbol, units, target_value):
-        executed_trade = self._execute_trade('bid', symbol, units, target_value)
-        cost = units * self.get_current_ask_price(symbol)
-        return executed_trade, cost
+        if not self.is_exchange_open():
+            raise Exception('Exchange is closed.')
 
+    def is_exchange_open(self):
+        results = requests.get(self.api['CLOCK'], headers=self.headers)
+        data = json.loads(results.content)
+        return data['is_open']
 
-class ExchangeSimulator(Exchange):
+    def get_orders(self):
+        results = requests.get(self.api['ORDERS'], headers=self.headers)
+        return json.loads(results.content)
 
-    def __init__(self, db, out_path=None):
-        Exchange.__init__(self)
-        self._out_file_path = os.path.join(out_path, 'trade_requests.csv')
+    def get_position(self, symbol, key=None):
+        results = requests.get('{}/{}'.format(self.api['POSITIONS'], symbol), headers=self.headers)
+        data = json.loads(results.content)
+        if 'code' in data:
+            return 0
+        if key in data:
+            return data[key]
+        return data
 
-    def _execute_trade(self, trade_type, symbol, units, target_value):
-        # Write trade to CSV path if set.
-        if self._out_file_path:
-            with open(self._out_file_path, 'a') as trade_file:
-                count = 0
-                while count < units:
-                    line = '{0},{1},{2}\n'.format(trade_type, symbol, target_value)
-                    trade_file.write(line)
-                    count += 1
-        return trade_type, symbol, units, target_value
+    def ask(self, symbol, units):
+        results = self._create_order(symbol, units, 'sell')
+        if not results['id']:
+            return None
+        return results['id']
 
-    # TODO make this a bit smarter. Probs can get actual values.
-    def get_liquidity(self, symbol):
-        return 2000.0
+    def bid(self, symbol, units):
+        results = self._create_order(symbol, units, 'buy')
+        if not results['id']:
+            return None
+        return results['id']
 
-    # TODO make this a bit smarter. Probs can get actual values.
-    def get_current_ask_price(self, symbol):
-        return float(14.83)
-
-
-# TODO Implement ExchangeInterface.
-class ExchangeInterface(Exchange):
-
-    def __init__(self, db):
-        Exchange.__init__(self, db)
+    def _create_order(self, symbol, units, side):
+        # Assuming all orders at this point are valid.
+        # Will offer limit orders in the future.
+        data = {"symbol": symbol, "qty": units, "side": side, "type": "market", "time_in_force": "gtc"}
+        # Ensure can sell if required.
+        if side == 'sell' and self.get_position(symbol, 'qty') is None:
+            raise Exception('There is no "{0}" in portfolio.'.format(symbol))
+        results = requests.post(self.api['ORDERS'], json=data, headers=self.headers)
+        return json.loads(results.content)
 
 
 class TradeExecutor:
@@ -68,42 +80,38 @@ class TradeExecutor:
         self._db = db
 
         # Read portfolio details from database.
-        pf_id, pf_name, exchange_name, capital = db.get_one_row('portfolios', 'name="{0}"'.format(portfolio_name))
+        pf_id, pf_name, exchange_name, capital, updated_by = db.get_one_row('portfolios', 'name="{0}"'.format(portfolio_name))
         results = db.query_table('assets', 'portfolio_id="{0}"'.format(pf_id))
-        self.portfolio = {"assets": {r[2]: int(r[3]) for r in results},
+        self.portfolio = {"id": pf_id,
+                          "assets": {r[2]: int(r[3]) for r in results},
                           "capital": float(capital)}
         # This is the passed exchange object, currently has nothing to do with exchange_name.
         self.exchange = exchange
 
-    def _value_position(self, symbol):
-        units = float(self.portfolio['assets'][symbol])
-        current_price = float(self.exchange.get_current_ask_price(symbol))
-        return units * current_price
-
-    def _calculate_exposure(self, symbol):
+    def calculate_exposure(self, symbol):
         # Assume exposure == maximum possible loss from current position.
-        return self._value_position(symbol)
+        # Get this from exchange?
+        data = self.exchange.get_position(symbol)
+        if data:
+            units = int(data['qty'])
+            current_value = float(data['current_price'])
+            return units * current_value
+        return 0.0
 
-    def _meets_risk_profile(self, strategy, proposed_trade, risk_profile):
+    def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
         strategy_risk_profile = risk_profile[strategy]
         signal, symbol, no_of_units, target_price = proposed_trade
         if 'max_exposure' in strategy_risk_profile:
             if signal == 'buy':
-                potential_exposure = self._calculate_exposure(symbol) + (no_of_units * target_price)
+                potential_exposure = self.calculate_exposure(symbol) + (no_of_units * target_price)
             else:
-                potential_exposure = self._calculate_exposure(symbol) - (no_of_units * target_price)
+                potential_exposure = self.calculate_exposure(symbol) - (no_of_units * target_price)
             if potential_exposure > strategy_risk_profile['max_exposure']:
                 return False
+        # TODO Implement more risk checks.
         if 'min_liquidity' in risk_profile:
-            if self.exchange.get_liquidity(symbol) < strategy_risk_profile['min_liquidity']:
-                return False
+            return True
         return True
-
-    def value_portfolio(self):
-        value = self.portfolio['capital']
-        for asset in self.portfolio['assets']:
-            value += self._value_position(asset)
-        return value
 
     def propose_trades(self, strategies_list, signals, risk_profile):
         trades = []
@@ -119,12 +127,12 @@ class TradeExecutor:
             trade = (signal.signal, signal.symbol, units, signal.target_value)
 
             # Check trade is valid.
-            if self._meets_risk_profile(strategy, trade, risk_profile):
+            if self.meets_risk_profile(strategy, trade, risk_profile):
                 # Check symbol is in portfolio.
                 if signal.symbol not in self.portfolio['assets']:
                     raise Exception('Asset "{0}" not found in portfolio.'.format(signal.symbol))
 
-                # Check portfolio has sufficent capital.
+                # Check portfolio has sufficient capital.
                 if signal.signal == 'buy':
                     required_capital = units * signal.target_value
                     if required_capital > float(self.portfolio['capital']):
@@ -132,28 +140,69 @@ class TradeExecutor:
                 trades.append(trade)
         return trades
 
-    def update_position(self):
-        # self.portfolio
-        # self._db
-        pass
-
     def execute_trades(self, requested_trades):
         # Return actual achieved trades, Not all trades will be fulfilled.
-        executed_trades = []
+        executed_trade_ids = []
         for trade in requested_trades:
             signal, symbol, units, target_value = trade
             if signal == 'sell':
-                executed_trade, monies_returned = self.exchange.ask(symbol, units, target_value)
-                updated_units = self.portfolio['assets'][executed_trade[1]] - executed_trade[2]
-                self.portfolio['capital'] += monies_returned
+                executed_trade_id = self.exchange.ask(symbol, units)
             if signal == 'buy':
-                executed_trade, cost = self.exchange.bid(symbol, units, target_value)
-                updated_units = self.portfolio['assets'][executed_trade[1]] + executed_trade[2]
-                self.portfolio['capital'] -= cost
-            self.portfolio['assets'][executed_trade[1]] = updated_units
-            executed_trades.append(executed_trade)
-        self.update_position()
-        return executed_trades
+                executed_trade_id = self.exchange.bid(symbol, units)
+            executed_trade_ids.append(executed_trade_id)
+        return executed_trade_ids
+
+    def process_executed_trades(self, executed_trade_ids, log):
+        processed_trades = []
+        for order_id in executed_trade_ids:
+            data = self._get_order_data(order_id)
+            status = data['status']
+
+            # Wait for order to fill.
+            while status == 'new' or status == 'partially_filled':
+                time.sleep(1)
+                data = self._get_order_data(order_id)
+                status = data['status']
+
+            # Catches bad trades.
+            trade = None
+
+            # Create order tuple with trade results.
+            if status == 'filled':
+                trade = (data['symbol'], data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
+
+            if trade:
+                # Update portfolio capital.
+                multiplier = 1 if data['side'] == 'sell' else -1
+                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * multiplier
+                self.portfolio['capital'] += change_in_capital
+
+                # Update portfolio assets.
+                change_in_units = int(trade[0]) * multiplier
+                self.portfolio['assets'][data['symbol']] += change_in_units
+
+                # Add to processed trades list.
+                processed_trades.append(trade)
+            else:
+                log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
+        return processed_trades
+
+    def _get_order_data(self, order_id):
+        return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
+
+    def update_portfolio_db(self, updated_by):
+        # TODO Portfolio and Asset tables should have new rows added for updates, with datetime and job id
+        # Update capital.
+        self._db.update_value('portfolios', 'capital', self.portfolio['capital'], 'id="{}"'.format(self.portfolio['id']))
+
+        # Update job id.
+        self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
+
+        # Update assets.
+        assets = self.portfolio['assets']
+        for asset in assets:
+            units = self.portfolio['assets'][asset]
+            self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(asset))
 
 
 class SignalGenerator:
@@ -170,17 +219,17 @@ class SignalGenerator:
         context = StrategyContext(self._db, self._run_date, self._run_time, self._ds)
         strategy_row = self._db.get_one_row('strategies', 'name="{0}"'.format(strategy_name))
         args = strategy_row[3]
-        method = strategy_row[4]
+        func = strategy_row[4]
 
         # Check method exists.
-        if method not in dir(strategy_methods):
-            raise Exception('Strategy function "{0}" not found.'.format(method))
+        if func not in dir(strategy_functions):
+            raise Exception('Strategy function "{0}" not found.'.format(func))
 
         # Prepare function call.
         args = ['"{0}"'.format(a) for a in args.split(',')] if args else ''
         args_str = ','.join(args)
         try:
-            signal = eval('strategy_methods.{0}(context,{1})'.format(method, args_str))
+            signal = eval('strategy_functions.{0}(context,{1})'.format(func, args_str))
         except Exception as error:
             signal = error
 
@@ -216,12 +265,15 @@ class Signal:
         self.symbol = None
         self.signal = None
         # "target" because can always sell for more or buy for less I assume.
-        self.target_value = None
+        self.target_value = 0
+        # TODO Allow different order types.
+        self.order_type = 'market'
         self.datetime = datetime.datetime.now()
 
     def __str__(self):
-        target_value_pp = '' if self.signal == 'hold' else ' @ {0}'.format(str(self.target_value))
-        return '[{0} {1}{2}]'.format(self.signal, self.symbol, target_value_pp)
+        # target_value_pp = '' if self.signal == 'hold' else ' @ {0}'.format(str(self.target_value))
+        market_order_pp = '' if self.signal == 'hold' else ' @ market value'
+        return '[{0} {1}{2}]'.format(self.signal, self.symbol, market_order_pp)
 
     def __repr__(self):
         return self.__str__()
@@ -240,11 +292,6 @@ class Signal:
         self.symbol = symbol
         self.signal = 'hold'
         self.target_value = None
-
-    # TODO Implement Signal save_to_db.
-    def save_to_db(self, db, log):
-        if log:
-            log.info('Saved signal: {}'.format(self.__str__()))
 
 
 def clean_signals(dirty_signals):
@@ -361,44 +408,56 @@ def main():
     job.log(log)
 
     # Setup data source if one is specified in the args.
-    ds = TickerDataSource(configs['data_source'], configs['db_root_path'], configs['environment']) if configs['data_source'] else None
+    ds_name = configs['data_source']
+    ds = TickerDataSource(db, ds_name) if ds_name else None
+    log.info('Initiated data source: {0}'.format(ds_name))
 
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
+    # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
+    job.update_status('Evaluating strategies')
     sg = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
     strategies_list = configs['strategy'].split(',')
     signals = sg.evaluate_strategies(strategies_list)
 
+    job.update_status('Processing signals')
     # Check for conflicting signals [Signals].
     cleaned_signals = clean_signals(signals)
-    for signal in cleaned_signals:
-        signal.save_to_db(db, log)
+
+    if not cleaned_signals:
+        raise Exception('No valid signals.')
 
     # Calculate risk profile {string(strategy name): float(risk value)}.
     risk_profile = generate_risk_profile(db, strategies_list)
 
     # Initiate exchange.
     if configs['mode'] == 'simulate':
-        exchange = ExchangeSimulator(db, out_path='/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive', )
+        exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'], simulator=True)
     elif configs['mode'] == 'execute':
-        exchange = ExchangeInterface(db)
+        exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'])
     else:
         raise Exception('Mode "{0}" is not valid.'.format(configs['mode']))
 
     # Initiate trade executor.
+    job.update_status('Proposing trades')
     trade_executor = TradeExecutor(db, 'test_portfolio', exchange)
-    inital_value = trade_executor.value_portfolio()
 
     # Prepare trades.
-    trades = trade_executor.propose_trades(strategies_list, cleaned_signals, risk_profile)
+    proposed_trades = trade_executor.propose_trades(strategies_list, cleaned_signals, risk_profile)
 
     # Execute trades.
-    executed_trades = trade_executor.execute_trades(trades)
+    job.update_status('Executing trades')
+    executed_order_ids = trade_executor.execute_trades(proposed_trades)
 
-    resulting_value = trade_executor.value_portfolio()
-    pnl = resulting_value - inital_value
-    log.info('Value: {0}, PnL: {1}'.format(resulting_value, pnl))
+    # Process trades.
+    job.update_status('Processing trades')
+    processed_trades = trade_executor.process_executed_trades(executed_order_ids, log)
+    trade_executor.update_portfolio_db(job.id)
+
+    # Log summary.
+    log.info('{0}/{1} trades successful.'.format(len(processed_trades), len(executed_order_ids)))
 
     job.finished(log)
+    print(get_job_phase_breakdown(db, job.id))
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import datetime
 
 
 def get_latest_value(context, symbol):
+    # TODO Return relevant error if required data is not available, error should be visible in logs.
     db = context.db
     condition = 'symbol="{0}"'.format(symbol)
     values = 'max(start_time), value'
@@ -10,6 +11,7 @@ def get_latest_value(context, symbol):
 
 
 def get_values_in_datetime_range(context, symbol, from_after, until_before):
+    # TODO Return relevant error if required data is not available, error should be visible in logs.
     db = context.db
     from_after = from_after.strftime('%Y%m%d%H%M%S')
     until_before = until_before.strftime('%Y%m%d%H%M%S')
@@ -20,7 +22,14 @@ def get_values_in_datetime_range(context, symbol, from_after, until_before):
     return values
 
 
-def get_current_value(context, symbol):
+def get_todays_values(context, symbol):
+    now = context.now.strftime('%Y%m%d%H%M%S')
+    this_morning = '{0}0000'.format(now[8:])
+    return get_values_in_datetime_range(context, symbol, this_morning, now)
+
+
+def get_live_value(context, symbol):
+    # TODO Return relevant error if required data is not available, error should be visible in logs.
     ds = context.ds
     result = ds.request_tickers([symbol, 'JPM'])
     return float(result[symbol])
