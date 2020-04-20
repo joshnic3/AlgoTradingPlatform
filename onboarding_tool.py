@@ -4,9 +4,10 @@ import sys
 
 from crontab import CronTab
 
-from library.file_utils import edit_config_file, parse_configs_file, parse_wildcards
-from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source, \
+from library.file_utils import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, copy_file
+from library.onboarding_utils import add_twap_required_tickers, add_data_source, \
     add_strategy, add_risk_profile, add_portfolio, add_assets
+from library.db_utils import initiate_database
 
 
 class StrategyOnboarder:
@@ -37,8 +38,8 @@ class StrategyOnboarder:
         strategy_id = add_strategy(db, strategy_name, risk_profile, 'JPM', 'basic')
 
         # Setup test for data_loader
-        required_tickers = [['JPM', 'FML', '15', '2', strategy_id],
-                            ['MS', 'FML', '15', '2', strategy_id]]
+        required_tickers = [['JPM', 'FML', '15', '4', strategy_id],
+                            ['MS', 'FML', '15', '4', strategy_id]]
         add_twap_required_tickers(db, required_tickers)
 
         # Add portfolio.
@@ -59,6 +60,7 @@ class StrategyOnboarder:
 
     def create_data_loader_job(self, strategy_name, schedule):
         # TODO Use venv interpreter.
+        # should beable to set up paths in venv for use in stdizin args
         interpreter = 'python3'
         code_path = '/home/robot/projects/AlgoTradingPlatform'
 
@@ -71,6 +73,7 @@ class StrategyOnboarder:
 
     def create_strategy_batch_job(self, strategy_names, schedule):
         # TODO Use venv interpreter.
+        # should beable to set up paths in venv for use in stdizin args
         interpreter = 'python3'
         code_path = '/home/robot/projects/AlgoTradingPlatform'
 
@@ -83,6 +86,7 @@ class StrategyOnboarder:
 
     @staticmethod
     def _create_cron_job(template, schedule):
+        # TODO seemed to be creating duplicate jobs.
         cron = CronTab(user=os.getlogin())
         command = ' '.join(template)
         job = cron.new(command=command)
@@ -95,7 +99,7 @@ class StrategyOnboarder:
         cron.remove_all()
 
     def _generate_deployment_script(self):
-        file_path = 'deploy_{}.sh'.format(self._environment)
+        file_path = 'deploy_{}.sh'.format(self.environment)
         deploy_template = [
             '#!/bin/sh',
             'echo Deploying %e%'
@@ -110,53 +114,61 @@ class StrategyOnboarder:
         ]
         with open(file_path, 'w') as df:
             for line in deploy_template:
-                line_str = line.replace('%e%', self._environment) + '\n'
+                line_str = line.replace('%e%', self.environment) + '\n'
                 df.write(line_str)
 
 
-def parse_cmdline_args(app_name):
+def parse_cmdline_args():
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
-    parser.add_option('-j', '--job_name', dest="job_name", default=None)
-    parser.add_option('--dry_run', action="store_true", default=False)
-
-    # Add custom option.
-    parser.add_option('-a', '--applications', dest="applications", default=None)
+    parser.add_option('-c', '--config_file', dest="config_file")
 
     options, args = parser.parse_args()
-    return parse_configs_file({
-        "app_name": app_name,
+    return {
         "environment": options.environment.lower(),
         "root_path": options.root_path,
-        "job_name": options.job_name,
-        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
-        "dry_run": options.dry_run,
-        "applications": options.applications
-    })
+        "config_file": options.config_file,
+    }
 
 
 def main():
-    configs = parse_cmdline_args('algo_trading_platform')
+    configs = parse_cmdline_args()
 
-    if configs['applications']:
-        for app in configs['applications'].split(','):
-            # Setup Algo Trading Platform application environment.
-            app_configs = parse_configs_file({'root_path': configs['root_path'], 'app_name': app})
-            dbos = setup_database_environment_path(app_configs['db_root_path'], app_configs['tables'],
-                                                   configs['environment'])
-            db = dbos[0]
+    # Generate resource directories.
+    resource_directories = ['logs', 'data', 'configs']
+    environment_path = get_environment_specific_path(configs['root_path'], configs['environment'])
+    add_dir(environment_path, backup=True)
+    for directory in resource_directories:
+        resource_path = os.path.join(environment_path, directory)
+        add_dir(resource_path, backup=True)
 
-            # Setup data source.
-            add_data_source(db, 'FML', os.path.join(configs['configs_root_path'], 'fml_data_source_config.json'))
+    # Move config file to environment specific config path.
+    environment_config_path = os.path.join(environment_path, 'configs', os.path.basename(configs['config_file']))
+    copy_file(configs['config_file'], environment_config_path)
 
-            # Add risk profile.
-            # Add risk profile.
-            risk_profile_id = add_risk_profile(db, [1_000.0, 1_000_000.0])
+    # Read application configs.
+    application_name = 'algo_trading_platform'
+    app_configs = parse_configs_file({'root_path': configs['root_path'],
+                                      'app_name': application_name,
+                                      'environment': configs['environment']
+                                      })
 
-            # Setup test strategy.
-            onboarder = StrategyOnboarder(app_configs, 'basic_strategy', risk_profile_id, configs['environment'])
-            onboarder.deploy(db)
+    # Initiate database.
+    dbos = [initiate_database(app_configs['db_root_path'], d, app_configs['tables'][d], configs['environment'])
+            for d in app_configs['tables']]
+
+    db = dbos[0]
+
+    # Setup data source.
+    add_data_source(db, 'FML', os.path.join(app_configs['configs_root_path'], 'fml_data_source_config.json'))
+
+    # Add risk profile.
+    risk_profile_id = add_risk_profile(db, [1000.0, 1000000.0])
+
+    # Setup test strategy.
+    onboarder = StrategyOnboarder(app_configs, 'basic_strategy', risk_profile_id, configs['environment'])
+    onboarder.deploy(db)
     return 0
 
 

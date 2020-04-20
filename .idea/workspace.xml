@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="70ef8c72-69c4-4dd9-9c5f-df52ed5560ac" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/../drive/configs/algo_trading_platform_config.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../drive/configs/fml_data_source_config.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/data_loader.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/file_utils.py" beforeDir="false" />
@@ -338,18 +336,15 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/data_source_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/ds_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/job_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_methods.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_batch.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_batch.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -374,7 +369,7 @@
   <component name="PropertiesComponent">
     <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../drive/dev/configs" />
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
@@ -383,6 +378,9 @@
       <recent name="$PROJECT_DIR$/strategies" />
       <recent name="$PROJECT_DIR$/../drive/data" />
       <recent name="$PROJECT_DIR$/library" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -397,7 +395,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.strategy_batch">
+  <component name="RunManager" selected="Python.onboarding_tool">
     <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -453,7 +451,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/onboarding_tool.py" />
-      <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -j onboarding_tool_test -a algo_trading_platform" />
+      <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -c $PROJECT_DIR$/../drive/setup/algo_trading_platform_config.json" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -490,9 +488,9 @@
     </list>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.onboarding_tool" />
         <item itemvalue="Python.strategy_batch" />
         <item itemvalue="Python.data_loader" />
-        <item itemvalue="Python.onboarding_tool" />
         <item itemvalue="Python.exchange_test" />
       </list>
     </recent_temporary>
@@ -539,9 +537,24 @@
     <breakpoint-manager>
       <breakpoints>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/exchange_test.py</url>
-          <line>43</line>
-          <option name="timeStamp" value="59" />
+          <url>file://$PROJECT_DIR$/strategy_batch.py</url>
+          <line>457</line>
+          <option name="timeStamp" value="68" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/library/job_utils.py</url>
+          <line>34</line>
+          <option name="timeStamp" value="71" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
+          <line>149</line>
+          <option name="timeStamp" value="74" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
+          <line>148</line>
+          <option name="timeStamp" value="75" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

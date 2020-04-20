@@ -2,13 +2,6 @@ from library.file_utils import add_dir, get_environment_specific_path, read_json
 from library.db_utils import initiate_database, generate_unique_id
 
 
-def setup_database_environment_path(db_root_path, schema, environment):
-    path = get_environment_specific_path(db_root_path, environment.lower())
-    # Back up feature should not be used in case there are multiple applications.
-    add_dir(path, overwrite=True)
-    return [initiate_database(db_root_path, d, schema[d], environment) for d in schema]
-
-
 def add_twap_required_tickers(db, required_tickers):
     for required_ticker in required_tickers:
         twap_required_ticker_id = generate_unique_id(''.join(str(required_ticker)))
