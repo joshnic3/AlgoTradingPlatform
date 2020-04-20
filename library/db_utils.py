@@ -10,8 +10,7 @@ def generate_unique_id(seed):
 
 
 def initiate_database(db_root_path, name, schema, environment):
-    db_path = get_environment_specific_path(db_root_path, environment)
-    db_file_path = os.path.join(db_path, '{0}.db'.format(name))
+    db_file_path = os.path.join(db_root_path, '{0}.db'.format(name))
 
     # Create db file if it doesnt already exist.
     with open(db_file_path, 'w') as db_file:
@@ -33,8 +32,7 @@ class Database:
         self._name = name
 
         # Check database file exists.
-        db_path = get_environment_specific_path(db_root_path, environment)
-        db_file_path = os.path.join(db_path, '{0}.db'.format(self._name))
+        db_file_path = os.path.join(db_root_path, '{0}.db'.format(self._name))
         if not os.path.exists(db_file_path):
             raise Exception('Database not found in path: {}'.format(db_path))
 

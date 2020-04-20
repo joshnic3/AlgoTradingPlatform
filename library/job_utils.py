@@ -15,7 +15,7 @@ def get_run_count(db, script_name, version=None):
 
 
 def is_script_new(db, script_name):
-    new_threshold = 5
+    new_threshold = 50
     no_of_runs_on_latest_version = get_run_count(db, script_name, 'latest')
     if no_of_runs_on_latest_version < new_threshold:
         return True

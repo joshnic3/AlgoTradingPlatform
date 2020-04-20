@@ -31,20 +31,22 @@ class AlpacaInterface:
         }
 
         if not self.is_exchange_open():
+            # TODO also check if authorised here and raise appropriate exception.
             raise Exception('Exchange is closed.')
 
     def is_exchange_open(self):
         results = requests.get(self.api['CLOCK'], headers=self.headers)
-        data = json.loads(results.content)
+        data = json.loads(results.content.decode('utf-8'))
         return data['is_open']
 
     def get_orders(self):
-        results = requests.get(self.api['ORDERS'], headers=self.headers)
-        return json.loads(results.content)
+        data = {"status": "all"}
+        results = requests.get(self.api['ORDERS'], params=data, headers=self.headers, )
+        return json.loads(results.content.decode('utf-8'))
 
     def get_position(self, symbol, key=None):
         results = requests.get('{}/{}'.format(self.api['POSITIONS'], symbol), headers=self.headers)
-        data = json.loads(results.content)
+        data = json.loads(results.content.decode('utf-8'))
         if 'code' in data:
             return 0
         if key in data:
@@ -71,7 +73,7 @@ class AlpacaInterface:
         if side == 'sell' and self.get_position(symbol, 'qty') is None:
             raise Exception('There is no "{0}" in portfolio.'.format(symbol))
         results = requests.post(self.api['ORDERS'], json=data, headers=self.headers)
-        return json.loads(results.content)
+        return json.loads(results.content.decode('utf-8'))
 
 
 class TradeExecutor:
@@ -169,7 +171,9 @@ class TradeExecutor:
 
             # Create order tuple with trade results.
             if status == 'filled':
-                trade = (data['symbol'], data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
+                trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
+
+            # trade = (data['symbol'], data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
 
             if trade:
                 # Update portfolio capital.
@@ -178,7 +182,7 @@ class TradeExecutor:
                 self.portfolio['capital'] += change_in_capital
 
                 # Update portfolio assets.
-                change_in_units = int(trade[0]) * multiplier
+                change_in_units = int(trade[1]) * multiplier
                 self.portfolio['assets'][data['symbol']] += change_in_units
 
                 # Add to processed trades list.

@@ -97,8 +97,8 @@ def worker_func(log, worker_id, group, data_loader):
     source, interval, count = group
 
     completed = 0
-    multiplier = 60
-    # multiplier = 1
+    # multiplier = 60
+    multiplier = 1
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1

@@ -5,6 +5,7 @@ import datetime
 
 
 def _check_environment_exists(env):
+    # TODO can now be done by seeing which directories exist under root path.
     # Dont know how to handle this correctly yet.
     environments = ["dev", "staging"]
     if env not in environments:
@@ -48,21 +49,20 @@ def write_json_file(json_file_path, content, overwrite=False):
 
 
 def parse_configs_file(cmdline_args):
-    if isinstance(cmdline_args, dict):
-        # Read script configurations into dict.
-        config_file_name = '{0}_config.json'.format(cmdline_args['app_name'])
-        configs = read_json_file(os.path.join(cmdline_args["root_path"], 'configs', config_file_name))
-
-        # Load cmdline args into configurations dict.
-        configs = dict(configs)
-        configs.update(cmdline_args)
-    else:
-        configs = read_json_file(cmdline_args)
-
     # Add default root paths
-    configs["db_root_path"] = os.path.join(configs["root_path"], 'data')
-    configs["configs_root_path"] = os.path.join(configs["root_path"], 'configs')
-    configs["logs_root_path"] = os.path.join(configs["root_path"], 'logs')
+    cmdline_args["db_root_path"] = os.path.join(cmdline_args["root_path"], cmdline_args['environment'], 'data')
+    cmdline_args["configs_root_path"] = os.path.join(cmdline_args["root_path"], cmdline_args['environment'], 'configs')
+    cmdline_args["logs_root_path"] = os.path.join(cmdline_args["root_path"], cmdline_args['environment'], 'logs')
+
+    # Read script configurations into dict.
+    config_file_name = '{0}_config.json'.format(cmdline_args['app_name'])
+    configs = read_json_file(os.path.join(cmdline_args["configs_root_path"], config_file_name))
+
+    # Load cmdline args into configurations dict.
+    configs = dict(configs)
+    configs.update(cmdline_args)
+
+
     return configs
 
 
