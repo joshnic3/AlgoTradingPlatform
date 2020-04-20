@@ -461,7 +461,6 @@ def main():
     log.info('{0}/{1} trades successful.'.format(len(processed_trades), len(executed_order_ids)))
 
     job.finished(log)
-    print(get_job_phase_breakdown(db, job.id))
 
 
 if __name__ == "__main__":

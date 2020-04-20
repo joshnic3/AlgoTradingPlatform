@@ -23,25 +23,23 @@ def is_script_new(db, script_name):
 
 
 def get_job_phase_breakdown(db, job_id):
+    return 'FEATURE NOT IMPLEMENTED.'
+    # TODO Calculate as percentage and pp.
     # TODO Handle jobs finishing unexpectedly.
     #   If there is no 'TERMINATED' phase the job didnt finish properly.
-    phases = db.query_table('jobs', 'id="{0}"'.format(job_id))
 
-    phase_breakdown = []
-    for phase, next_phase in zip(phases, phases[1:]):
-        start_time = datetime.datetime.strptime(phase[4], '%Y%m%d%H%M%S')
-        end_time = datetime.datetime.strptime(next_phase[4], '%Y%m%d%H%M%S')
-        phase_info = phase[5]
-        next_phase_info = next_phase[5]
-        # TODO Make this more accurate storing by string phase date times in memory.
-        phase = ((end_time - start_time).total_seconds(), phase_info)
-        phase_breakdown.append(phase)
-        if next_phase_info == 'TERMINATED':
-            return phase_breakdown
-
-    # TODO Calculate as percentage and pp.
-    total_time = sum([p[0] for p in phase_breakdown])
-    return phase_breakdown
+    # # Load phases into a list to maintain order.
+    # phases = [(p[4], p[5]) for p in db.query_table('jobs', 'id="{0}"'.format(job_id))]
+    #
+    # # Calculate time taken by each phase except TERMINATED.
+    # for phase in phases:
+    #     date_time, status = phase
+    #     if not status == 'TERMINATED':
+    #         pass
+    #
+    #
+    # phase_breakdown = []
+    # return phase_breakdown
 
 
 class Job:
@@ -67,7 +65,7 @@ class Job:
 
     def _set_status(self, status):
         self.status = status
-        values = [self.id, self.name, self.script, self._version, datetime.datetime.now().strftime('%Y%m%d%H%M%S'), self.status]
+        values = [self.id, self.name, self.script, self._version, datetime.datetime.now(), self.status]
         self._db.insert_row('jobs', values)
 
     def log(self, log):

@@ -4,7 +4,7 @@ import sys
 
 from crontab import CronTab
 
-from library.file_utils import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path
+from library.file_utils import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, copy_file
 from library.onboarding_utils import add_twap_required_tickers, add_data_source, \
     add_strategy, add_risk_profile, add_portfolio, add_assets
 from library.db_utils import initiate_database
@@ -118,21 +118,22 @@ class StrategyOnboarder:
                 df.write(line_str)
 
 
-def parse_cmdline_args(app_name):
+def parse_cmdline_args():
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
+    parser.add_option('-c', '--config_file', dest="config_file")
 
     options, args = parser.parse_args()
     return {
         "environment": options.environment.lower(),
         "root_path": options.root_path,
+        "config_file": options.config_file,
     }
 
 
 def main():
-    # TODO take config path as param and then move to configs dir.
-    configs = parse_cmdline_args('')
+    configs = parse_cmdline_args()
 
     # Generate resource directories.
     resource_directories = ['logs', 'data', 'configs']
@@ -141,6 +142,10 @@ def main():
     for directory in resource_directories:
         resource_path = os.path.join(environment_path, directory)
         add_dir(resource_path, backup=True)
+
+    # Move config file to environment specific config path.
+    environment_config_path = os.path.join(environment_path, 'configs', os.path.basename(configs['config_file']))
+    copy_file(configs['config_file'], environment_config_path)
 
     # Read application configs.
     application_name = 'algo_trading_platform'
@@ -158,7 +163,6 @@ def main():
     # Setup data source.
     add_data_source(db, 'FML', os.path.join(app_configs['configs_root_path'], 'fml_data_source_config.json'))
 
-    # Add risk profile.
     # Add risk profile.
     risk_profile_id = add_risk_profile(db, [1000.0, 1000000.0])
 

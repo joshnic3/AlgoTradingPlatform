@@ -1,21 +1,11 @@
-import os
 import shutil
 import json
 import datetime
+import os
 
 
-def _check_environment_exists(env):
-    # TODO can now be done by seeing which directories exist under root path.
-    # Dont know how to handle this correctly yet.
-    environments = ["dev", "staging"]
-    if env not in environments:
-        raise Exception('Environment "{}" does not exist!'.format(env.lower()))
-
-
-def get_environment_specific_path(root, env):
-    env = env.lower()
-    _check_environment_exists(env)
-    return os.path.join(root, env)
+def get_environment_specific_path(root_path, env):
+    return os.path.join(root_path, env.lower())
 
 
 def add_dir(path, overwrite=False, backup=False):
@@ -33,6 +23,14 @@ def add_dir(path, overwrite=False, backup=False):
     return path
 
 
+def copy_file(source, destination_path):
+    if not os.path.exists(source):
+        raise Exception('Source file does not exist: {0}'.format(source))
+    if os.path.isdir(destination_path):
+        raise Exception('Destination path does not exist: {0}'.format(destination_path))
+    shutil.copyfile(source, destination_path)
+
+
 def read_json_file(json_file_path):
     if not os.path.exists(json_file_path):
         # Extract file type for exception
@@ -41,11 +39,12 @@ def read_json_file(json_file_path):
         return json.load(json_file)
 
 
-# TODO Implement, write and write over, edit_config_file needs to write over.
 def write_json_file(json_file_path, content, overwrite=False):
-    if not os.path.exists(json_file_path):
-        # Extract file type for exception
-        raise Exception('File not found in path: {}'.format(json_file_path))
+    if overwrite:
+        if not os.path.exists(json_file_path):
+            raise Exception('File not found in path: {}'.format(json_file_path))
+    with open(json_file_path, 'w') as json_file:
+        json.dump(content, json_file)
 
 
 def parse_configs_file(cmdline_args):
@@ -61,8 +60,6 @@ def parse_configs_file(cmdline_args):
     # Load cmdline args into configurations dict.
     configs = dict(configs)
     configs.update(cmdline_args)
-
-
     return configs
 
 

@@ -98,7 +98,7 @@ def worker_func(log, worker_id, group, data_loader):
 
     completed = 0
     # multiplier = 60
-    multiplier = 1
+    multiplier = 0
     while completed < int(count):
         data_loader.get_ticker_values()
         completed += 1
@@ -210,7 +210,6 @@ def main():
         status = 1
 
     job.finished(log, status)
-    print(get_job_phase_breakdown(db, job.id))
     return status
 
 
