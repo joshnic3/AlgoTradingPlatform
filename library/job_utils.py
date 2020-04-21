@@ -61,7 +61,8 @@ class Job:
         return '[id: {0}, job: {1}, script: {2}, code version: {3}]'.format(self.id,
                                                                             self.name,
                                                                             self.script,
-                                                                       '{0}{1}'.format(self._version, '(NEW)' if is_new else ''))
+                                                                            '{0}{1}'.format(self._version,
+                                                                                            '(NEW)' if is_new else ''))
 
     def _set_status(self, status):
         self.status = status

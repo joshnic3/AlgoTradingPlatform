@@ -177,12 +177,11 @@ class TradeExecutor:
 
             if trade:
                 # Update portfolio capital.
-                multiplier = 1 if data['side'] == 'sell' else -1
-                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * multiplier
+                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == 'sell' else -1
                 self.portfolio['capital'] += change_in_capital
 
                 # Update portfolio assets.
-                change_in_units = int(trade[1]) * multiplier
+                change_in_units = int(trade[1]) * 1 if data['side'] == 'buy' else -1
                 self.portfolio['assets'][data['symbol']] += change_in_units
 
                 # Add to processed trades list.

@@ -34,7 +34,7 @@ class Database:
         # Check database file exists.
         db_file_path = os.path.join(db_root_path, '{0}.db'.format(self._name))
         if not os.path.exists(db_file_path):
-            raise Exception('Database not found in path: {}'.format(db_path))
+            raise Exception('Database not found in path: {}'.format(db_root_path))
 
         self._connection = sqlite3.connect(db_file_path)
         self._cursor = self._connection.cursor()

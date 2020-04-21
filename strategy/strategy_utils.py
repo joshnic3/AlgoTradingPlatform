@@ -10,6 +10,7 @@ def get_latest_value(context, symbol):
     return float(results[0][1])
 
 
+# TODO add param to expect x values? minimun values might be useful for some strat calcs.
 def get_values_in_datetime_range(context, symbol, from_after, until_before):
     # TODO Return relevant error if required data is not available, error should be visible in logs.
     db = context.db
