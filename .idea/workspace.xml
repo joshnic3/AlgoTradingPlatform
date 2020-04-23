@@ -2,7 +2,6 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="70ef8c72-69c4-4dd9-9c5f-df52ed5560ac" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/web_service_sandbox.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/data_loader.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/library/file_utils.py" beforeDir="false" />
@@ -337,16 +336,8 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/exchange_test.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/db_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />

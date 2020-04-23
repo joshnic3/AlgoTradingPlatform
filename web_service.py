@@ -43,10 +43,9 @@ def twaps():
     else:
         result = db.query_table(table_name)
 
-    # Return data as a dictionary.
-    twap_schema = configs['tables'][database_name]['twaps']
-
-    return response(200, query_to_dict(result, twap_schema))
+    start_times = [r[1] for r in result]
+    values = [r[4] for r in result]
+    return response(200, list(zip(start_times, values)))
 
 
 @app.route('/twaps/symbols')
