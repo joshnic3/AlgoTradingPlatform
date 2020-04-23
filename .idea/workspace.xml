@@ -497,9 +497,9 @@
     </configuration>
     <list>
       <item itemvalue="Python.data_loader" />
+      <item itemvalue="Python.exchange_test" />
       <item itemvalue="Python.onboarding_tool" />
       <item itemvalue="Python.strategy_batch" />
-      <item itemvalue="Python.exchange_test" />
       <item itemvalue="Python.web_service_sandbox" />
     </list>
     <recent_temporary>
