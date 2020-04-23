@@ -26,6 +26,14 @@ def initiate_database(db_root_path, name, schema, environment):
     return db
 
 
+def query_to_dict(query_result, table_schema):
+    # Assumes list of rows and that the first element is a unique id.
+    results_as_dict = {}
+    for row in query_result:
+        results_as_dict[row[0]] = dict(zip(table_schema[1:], row[1:]))
+    return results_as_dict
+
+
 class Database:
 
     def __init__(self, db_root_path, name, environment):
