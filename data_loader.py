@@ -54,7 +54,10 @@ class TWAP:
     def save_to_db(self, db):
         twap_id = generate_unique_id(self.symbol)
         times = [t[0] for t in self.ticks]
-        values = [twap_id, min(times).strftime('%Y%m%d%H%M%S'), max(times).strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
+        start_time = min(times)
+        # This is the time of the last tick, so will be interval * count minutes early.
+        end_time = max(times)
+        values = [twap_id, start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
         db.insert_row('twaps', values)
 
     def log_twap(self, log):
@@ -100,6 +103,7 @@ def worker_func(log, worker_id, group, data_loader):
     # multiplier = 60
     multiplier = 0
     while completed < int(count):
+        # TODO should not wait after last value is recorded.
         data_loader.get_ticker_values()
         completed += 1
         time.sleep(int(interval) * multiplier)
@@ -140,8 +144,6 @@ def parse_cmdline_args(app_name):
 def main():
     # Setup configs.
     global configs
-    # cmdline_args = parse_cmdline_args()
-    # configs = parse_configs_file(cmdline_args)
     configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.

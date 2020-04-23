@@ -30,3 +30,10 @@ print(orders)
 
 
 
+
+
+schema = {}
+
+schema['algo_trading_platform']
+
+

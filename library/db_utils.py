@@ -26,6 +26,14 @@ def initiate_database(db_root_path, name, schema, environment):
     return db
 
 
+def query_to_dict(query_result, table_schema):
+    # Assumes list of rows and that the first element is a unique id.
+    results_as_dict = {}
+    for row in query_result:
+        results_as_dict[row[0]] = dict(zip(table_schema[1:], row[1:]))
+    return results_as_dict
+
+
 class Database:
 
     def __init__(self, db_root_path, name, environment):
@@ -34,7 +42,7 @@ class Database:
         # Check database file exists.
         db_file_path = os.path.join(db_root_path, '{0}.db'.format(self._name))
         if not os.path.exists(db_file_path):
-            raise Exception('Database not found in path: {}'.format(db_path))
+            raise Exception('Database not found in path: {}'.format(db_root_path))
 
         self._connection = sqlite3.connect(db_file_path)
         self._cursor = self._connection.cursor()

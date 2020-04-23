@@ -143,6 +143,9 @@ def main():
         resource_path = os.path.join(environment_path, directory)
         add_dir(resource_path, backup=True)
 
+    # Add in environment specific paths to system path.
+    # TODO implement add in environment specific paths to system path.
+
     # Move config file to environment specific config path.
     environment_config_path = os.path.join(environment_path, 'configs', os.path.basename(configs['config_file']))
     copy_file(configs['config_file'], environment_config_path)
