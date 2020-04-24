@@ -336,8 +336,18 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/db_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy/strategy_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy_batch.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -367,14 +377,14 @@
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
+      <recent name="$PROJECT_DIR$/../drive/setup" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/strategies" />
       <recent name="$PROJECT_DIR$/../drive/data" />
       <recent name="$PROJECT_DIR$/library" />
-    </key>
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
-      <recent name="$PROJECT_DIR$/../drive/setup" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -389,7 +399,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.web_service_sandbox">
+  <component name="RunManager" selected="Python.strategy_batch">
     <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -403,7 +413,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -j basic_strategy_data_loader -s basic_strategy" />
+      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -j pairs_data_loader -s pairs" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -465,8 +475,8 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/strategy_batch.py" />
-      <option name="PARAMETERS" value="-e dev -j basic_strategy_strategy_batch -r $PROJECT_DIR$/../drive -d FML -s basic_strategy -m simulate" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/strategy_executor.py" />
+      <option name="PARAMETERS" value="-e dev -j pairs_frequent_strategy_batch -r $PROJECT_DIR$/../drive -d FML -s pairs -m simulate" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -504,10 +514,10 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.web_service_sandbox" />
+        <item itemvalue="Python.strategy_batch" />
         <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.onboarding_tool" />
-        <item itemvalue="Python.strategy_batch" />
+        <item itemvalue="Python.web_service_sandbox" />
         <item itemvalue="Python.exchange_test" />
       </list>
     </recent_temporary>
@@ -553,11 +563,6 @@
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/strategy_batch.py</url>
-          <line>456</line>
-          <option name="timeStamp" value="68" />
-        </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/library/job_utils.py</url>
           <line>34</line>

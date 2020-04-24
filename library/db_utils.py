@@ -78,7 +78,7 @@ class Database:
                                               ' WHERE {};'.format(condition) if condition else ';')
         return self.execute_sql(sql)
 
-    def update_value(self, table, column, value,condition):
+    def update_value(self, table, column, value, condition):
         if table.lower() not in self.tables:
             return None
         sql = 'UPDATE {0} SET {1}="{2}"{3}'.format(table,
@@ -91,7 +91,10 @@ class Database:
         results = self.query_table(table, condition, columns)
         if len(results) > 1:
             raise Exception('Database query expected only one row, got {0}.'.format(len(results)))
-        return results[0]
+        if results:
+            return results[0]
+        else:
+            return None
 
     def add_table(self, table, sql):
         self.tables.append(table)

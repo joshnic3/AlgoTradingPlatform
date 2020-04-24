@@ -12,19 +12,21 @@ from library.db_utils import initiate_database
 
 class StrategyOnboarder:
 
-    def __init__(self, configs, name, risk_profile, environment):
+    def __init__(self, configs, name, risk_profile, method, args, environment):
         self.configs = configs
         self.name = name
         self.environment = environment
         self.risk_profile = risk_profile
+        self.method = method
+        self.args = args
 
     def deploy(self, db):
         # Add strategy.
-        self.setup_strategy(db, self.name, self.risk_profile)
+        self.setup_strategy(db, self.name, self.risk_profile, self.method, self.args)
 
         # Add cron jobs.
         self.create_data_loader_job(self.name, "30 14-21 * * 1-5")
-        self.create_strategy_batch_job([self.name], "30 20 * * 1-5")
+        self.create_strategy_executor_job([self.name], "30 20 * * 1-5")
 
         # Environment specific setup.
         if self.environment == 'dev':
@@ -33,9 +35,9 @@ class StrategyOnboarder:
             self._generate_deployment_script()
 
     @staticmethod
-    def setup_strategy(db, strategy_name, risk_profile):
+    def setup_strategy(db, strategy_name, risk_profile, method, args):
         # Add strategy and its required twaps.
-        strategy_id = add_strategy(db, strategy_name, risk_profile, 'JPM', 'basic')
+        strategy_id = add_strategy(db, strategy_name, risk_profile, args, method)
 
         # Setup test for data_loader
         required_tickers = [['JPM', 'FML', '15', '4', strategy_id],
@@ -43,8 +45,9 @@ class StrategyOnboarder:
         add_twap_required_tickers(db, required_tickers)
 
         # Add portfolio.
-        portfolio_id = add_portfolio(db, 'test_portfolio', 'alpaca', '1000.00')
+        portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '1000.00')
         add_assets(db, portfolio_id, 'JPM', 0)
+        add_assets(db, portfolio_id, 'MS', 0)
 
         # Returns strategy name.
         return strategy_name
@@ -71,7 +74,7 @@ class StrategyOnboarder:
         cron_job_template = [interpreter, script_path, data_loader_args]
         self._create_cron_job(cron_job_template, schedule)
 
-    def create_strategy_batch_job(self, strategy_names, schedule):
+    def create_strategy_executor_job(self, strategy_names, schedule):
         # TODO Use venv interpreter.
         # should beable to set up paths in venv for use in stdizin args
         interpreter = 'python3'
@@ -80,7 +83,7 @@ class StrategyOnboarder:
         # Each strategy_batch can run multiple strategies, schedule jobs at required runtime e.g. EOD
         script_name = 'strategy_batch'
         script_path = os.path.join(code_path, '{0}.py'.format(script_name))
-        data_loader_args = self._generate_script_args('strategy_batch', ','.join(strategy_names))
+        data_loader_args = self._generate_script_args('strategy_executor', ','.join(strategy_names))
         cron_job_template = [interpreter, script_path, data_loader_args]
         self._create_cron_job(cron_job_template, schedule)
 
@@ -170,7 +173,9 @@ def main():
     risk_profile_id = add_risk_profile(db, [1000.0, 1000000.0])
 
     # Setup test strategy.
-    onboarder = StrategyOnboarder(app_configs, 'basic_strategy', risk_profile_id, configs['environment'])
+    onboarder = StrategyOnboarder(app_configs, 'basic_test', risk_profile_id, 'basic', 'JPM', configs['environment'])
+    onboarder.deploy(db)
+    onboarder = StrategyOnboarder(app_configs, 'pairs', risk_profile_id, 'pairs_frequent', 'JPM,MS', configs['environment'])
     onboarder.deploy(db)
     return 0
 

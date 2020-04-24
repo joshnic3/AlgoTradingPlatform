@@ -38,6 +38,7 @@ class AlpacaInterface:
         results = requests.get(self.api['CLOCK'], headers=self.headers)
         data = json.loads(results.content.decode('utf-8'))
         return data['is_open']
+        # return True
 
     def get_orders(self):
         data = {"status": "all"}
@@ -106,8 +107,10 @@ class TradeExecutor:
         if 'max_exposure' in strategy_risk_profile:
             if signal == 'buy':
                 potential_exposure = self.calculate_exposure(symbol) + (no_of_units * target_price)
-            else:
+            if signal == 'sell':
                 potential_exposure = self.calculate_exposure(symbol) - (no_of_units * target_price)
+            else:
+                potential_exposure = 0
             if potential_exposure > strategy_risk_profile['max_exposure']:
                 return False
         # TODO Implement more risk checks.
@@ -115,31 +118,28 @@ class TradeExecutor:
             return True
         return True
 
-    def propose_trades(self, strategies_list, signals, risk_profile):
+    def propose_trades(self, strategy, signals, risk_profile):
         trades = []
-        for strategy in strategies_list:
-            # Get required data from database.
-            strategy_symbol = self._db.get_one_row('strategies', 'name="{0}"'.format(strategy))[3]
-            signal = [s for s in signals if s.symbol == strategy_symbol][0]
+        for signal in signals:
+            if signal.signal != 'hold':
+                # Calculate number of units for trade.
+                units = 1
 
-            # Calculate number of units for trade.
-            units = 1
+                # Create trade tuple.
+                trade = (signal.signal, signal.symbol, units, signal.target_value)
 
-            # Create trade tuple.
-            trade = (signal.signal, signal.symbol, units, signal.target_value)
+                # Check trade is valid.
+                if self.meets_risk_profile(strategy, trade, risk_profile):
+                    # Check symbol is in portfolio.
+                    if signal.symbol not in self.portfolio['assets']:
+                        raise Exception('Asset "{0}" not found in portfolio.'.format(signal.symbol))
 
-            # Check trade is valid.
-            if self.meets_risk_profile(strategy, trade, risk_profile):
-                # Check symbol is in portfolio.
-                if signal.symbol not in self.portfolio['assets']:
-                    raise Exception('Asset "{0}" not found in portfolio.'.format(signal.symbol))
-
-                # Check portfolio has sufficient capital.
-                if signal.signal == 'buy':
-                    required_capital = units * signal.target_value
-                    if required_capital > float(self.portfolio['capital']):
-                        raise Exception('Required capital has exceeded limits.')
-                trades.append(trade)
+                    # Check portfolio has sufficient capital.
+                    if signal.signal == 'buy':
+                        required_capital = units * signal.target_value
+                        if required_capital > float(self.portfolio['capital']):
+                            raise Exception('Required capital has exceeded limits.')
+                    trades.append(trade)
         return trades
 
     def execute_trades(self, requested_trades):
@@ -219,7 +219,7 @@ class SignalGenerator:
 
     def _evaluate_strategy(self, strategy_name):
         # Get strategy function and arguments.
-        context = StrategyContext(self._db, self._run_date, self._run_time, self._ds)
+        context = StrategyContext(self._db, strategy_name, self._run_date, self._run_time, self._ds)
         strategy_row = self._db.get_one_row('strategies', 'name="{0}"'.format(strategy_name))
         args = strategy_row[3]
         func = strategy_row[4]
@@ -242,23 +242,59 @@ class SignalGenerator:
 
         return signal
 
-    def evaluate_strategies(self, strategies_list):
+    def evaluate_strategies(self, strategy):
         # Evaluate strategy.
-        #   Might want to evaluate concurrently?
-        signals = [self._evaluate_strategy(s) for s in strategies_list]
-        return signals
+        return self._evaluate_strategy(strategy)
 
 
 class StrategyContext:
 
-    def __init__(self, db, run_date, run_time, ds=None):
+    def __init__(self, db, strategy_name, run_date, run_time, ds=None):
         now = datetime.datetime.now()
         run_date = run_date if run_date else now.strftime('%Y%m%d')
         run_time = run_time if run_time else now.strftime('%H%M%S')
         self.now = datetime.datetime.strptime(run_date + run_time, '%Y%m%d%H%M%S')
         self.db = db
         self.ds = ds if ds else None
-        self.signal = Signal(0)
+        self.strategy_name = strategy_name
+        self.signals = []
+
+    def _generate_variable_id(self, variable_name):
+        # Variables have to be unique with in a a strategy.
+        # Different strategies can use the same variable names with out clashes.
+        # TODO Use a consistent hash, python hash function not suitable.
+        return str(self.strategy_name + variable_name)
+
+    def add_signal(self, symbol, order_type='hold', target_value=None):
+        signal = Signal(len(self.signals))
+        if order_type.lower() == 'hold':
+            signal.hold(symbol)
+        elif order_type.lower() == 'buy' and target_value:
+            signal.buy(symbol, target_value)
+        elif order_type.lower() == 'sell' and target_value:
+            signal.sell(symbol, target_value)
+        else:
+            raise Exception('Signal not valid.')
+        self.signals.append(signal)
+
+
+    def set_variable(self, name, new_value):
+        variable_id = self._generate_variable_id(name)
+        if self.get_variable(name):
+            # update value in db.
+            self.db.update_value('strategy_variables', 'value', new_value, 'id="{0}"'.format(variable_id))
+        else:
+            # insert new variable.
+            values = [variable_id, new_value]
+            self.db.insert_row('strategy_variables', values)
+        return new_value
+
+    def get_variable(self, name):
+        variable_id = self._generate_variable_id(name)
+        result = self.db.get_one_row('strategy_variables', 'id="{0}"'.format(variable_id))
+        if not result:
+            return None
+        return result[1]
 
 
 class Signal:
@@ -298,6 +334,12 @@ class Signal:
 
 
 def clean_signals(dirty_signals):
+    # If there is only one signal.
+    if isinstance(dirty_signals, Signal):
+        return dirty_signals
+    if not isinstance(dirty_signals, list):
+        return None
+
     # Remove errors.
     signals = [ds for ds in dirty_signals if isinstance(ds, Signal)]
 
@@ -330,30 +372,29 @@ def clean_signals(dirty_signals):
     return [signals_per_unique_symbol[signal] for signal in unique_symbols]
 
 
-def generate_risk_profile(db, strategies_list, risk_appetite=1.0):
+def generate_risk_profile(db, strategy, risk_appetite=1.0):
     # Returns risk profile, dict of factor: values.
     risk_profile = {}
-    for strategy in strategies_list:
-        # Get risk profile for strategy.
-        condition = 'name="{0}"'.format(strategy)
-        risk_profile_id = db.get_one_row('strategies', condition)[2]
-        condition = 'id="{0}"'.format(risk_profile_id)
-        headers = [h[1] for h in db.execute_sql('PRAGMA table_info(risk_profiles);')]
-        risk_profile_row = [float(v) for v in db.get_one_row('risk_profiles', condition)]
+    # Get risk profile for strategy.
+    condition = 'name="{0}"'.format(strategy)
+    risk_profile_id = db.get_one_row('strategies', condition)[2]
+    condition = 'id="{0}"'.format(risk_profile_id)
+    headers = [h[1] for h in db.execute_sql('PRAGMA table_info(risk_profiles);')]
+    risk_profile_row = [float(v) for v in db.get_one_row('risk_profiles', condition)]
 
-        # Package risk profile into a dictionary.
-        risk_profile_dict = dict(zip(headers[1:], risk_profile_row[1:]))
-        for name in risk_profile_dict:
-            if 'max' in name:
-                risk_profile_dict[name] = risk_profile_dict[name] * risk_appetite
-            if 'min' in name:
-                if risk_appetite > 1:
-                    multiplier = 1 - (risk_appetite - 1)
-                else:
-                    multiplier = (1 - risk_appetite) + 1
-                risk_profile_dict[name] = risk_profile_dict[name] * multiplier
+    # Package risk profile into a dictionary.
+    risk_profile_dict = dict(zip(headers[1:], risk_profile_row[1:]))
+    for name in risk_profile_dict:
+        if 'max' in name:
+            risk_profile_dict[name] = risk_profile_dict[name] * risk_appetite
+        if 'min' in name:
+            if risk_appetite > 1:
+                multiplier = 1 - (risk_appetite - 1)
+            else:
+                multiplier = (1 - risk_appetite) + 1
+            risk_profile_dict[name] = risk_profile_dict[name] * multiplier
 
-        risk_profile[strategy] = risk_profile_dict
+    risk_profile[strategy] = risk_profile_dict
     return risk_profile
 
 
@@ -418,19 +459,21 @@ def main():
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
     job.update_status('Evaluating strategies')
-    sg = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
-    strategies_list = configs['strategy'].split(',')
-    signals = sg.evaluate_strategies(strategies_list)
+    signal_generator = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
+    # Only takes on strategy.
+    signals = signal_generator.evaluate_strategies(configs['strategy'])
 
     job.update_status('Processing signals')
     # Check for conflicting signals [Signals].
     cleaned_signals = clean_signals(signals)
 
     if not cleaned_signals:
+        # Script cannot go any further from this point, but should not error.
+        # TODO add job terminator, and logg as warning.
         raise Exception('No valid signals.')
 
     # Calculate risk profile {string(strategy name): float(risk value)}.
-    risk_profile = generate_risk_profile(db, strategies_list)
+    risk_profile = generate_risk_profile(db, configs['strategy'])
 
     # Initiate exchange.
     if configs['mode'] == 'simulate':
@@ -438,14 +481,16 @@ def main():
     elif configs['mode'] == 'execute':
         exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'])
     else:
+        # Script cannot go any further from this point.
+        # TODO add (generic bad configs) job terminator.
         raise Exception('Mode "{0}" is not valid.'.format(configs['mode']))
 
     # Initiate trade executor.
     job.update_status('Proposing trades')
-    trade_executor = TradeExecutor(db, 'test_portfolio', exchange)
+    trade_executor = TradeExecutor(db, '{0}_portfolio'.format(configs['strategy']), exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(strategies_list, cleaned_signals, risk_profile)
+    proposed_trades = trade_executor.propose_trades(configs['strategy'], cleaned_signals, risk_profile)
 
     # Execute trades.
     job.update_status('Executing trades')

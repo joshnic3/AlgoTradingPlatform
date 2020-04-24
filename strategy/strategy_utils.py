@@ -1,5 +1,8 @@
 import datetime
 
+# TODO Strat variables tables, creates unique id from hashing strat id and viable name, managed through context
+# Add signal util in context
+
 
 def get_latest_value(context, symbol):
     # TODO Return relevant error if required data is not available, error should be visible in logs.
