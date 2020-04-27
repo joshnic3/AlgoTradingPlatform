@@ -12,42 +12,38 @@ from library.db_utils import initiate_database
 
 class StrategyOnboarder:
 
-    def __init__(self, configs, name, risk_profile, method, args, environment):
+    def __init__(self, configs, name, risk_profile, portfolio_id, method, args, data_loader_schedule, strategy_schedule, required_tickers, environment):
         self.configs = configs
         self.name = name
         self.environment = environment
         self.risk_profile = risk_profile
         self.method = method
         self.args = args
+        self.data_loader_schedule = data_loader_schedule
+        self.strategy_schedule = strategy_schedule
+        self.required_tickers = required_tickers
+        self.portfolio_id = portfolio_id
 
     def deploy(self, db):
         # Add strategy.
-        self.setup_strategy(db, self.name, self.risk_profile, self.method, self.args)
-
-        # Add cron jobs.
-        self.create_data_loader_job(self.name, "30 14-21 * * 1-5")
-        self.create_strategy_executor_job([self.name], "30 20 * * 1-5")
+        self.setup_strategy(db, self.name, self.risk_profile, self.portfolio_id, self.method, self.args, self.required_tickers)
 
         # Environment specific setup.
-        if self.environment == 'dev':
-            self._reset_cron_jobs()
-        else:
+        if self.environment != 'dev':
+            self.create_data_loader_job(self.name, self.data_loader_schedule)
+            self.create_strategy_executor_job([self.name], self.strategy_schedule)
             self._generate_deployment_script()
 
     @staticmethod
-    def setup_strategy(db, strategy_name, risk_profile, method, args):
+    def setup_strategy(db, strategy_name, risk_profile, portfolio_id, method, args, required_tickers):
         # Add strategy and its required twaps.
-        strategy_id = add_strategy(db, strategy_name, risk_profile, args, method)
+        strategy_id = add_strategy(db, strategy_name, risk_profile, portfolio_id, args, method)
+        [r.append(strategy_id) for r in required_tickers]
 
         # Setup test for data_loader
-        required_tickers = [['JPM', 'FML', '15', '4', strategy_id],
-                            ['MS', 'FML', '15', '4', strategy_id]]
         add_twap_required_tickers(db, required_tickers)
 
-        # Add portfolio.
-        portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '1000.00')
-        add_assets(db, portfolio_id, 'JPM', 0)
-        add_assets(db, portfolio_id, 'MS', 0)
+
 
         # Returns strategy name.
         return strategy_name
@@ -172,10 +168,38 @@ def main():
     # Add risk profile.
     risk_profile_id = add_risk_profile(db, [1000.0, 1000000.0])
 
-    # Setup test strategy.
-    onboarder = StrategyOnboarder(app_configs, 'basic_test', risk_profile_id, 'basic', 'JPM', configs['environment'])
+    # Setup basic limit strategy.
+    # Add portfolio.
+    strategy_name = 'basic_limit'
+    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '750.00')
+    add_assets(db, portfolio_id, 'JPM', 0)
+    onboarder = StrategyOnboarder(app_configs,
+                                  strategy_name,
+                                  risk_profile_id,
+                                  portfolio_id,
+                                  'basic',
+                                  'JPM',
+                                  "30 14-21 * * 1-5",
+                                  "30 20 * * 1-5",
+                                  [['JPM', '15', '4', 'FML']],
+                                  configs['environment'])
     onboarder.deploy(db)
-    onboarder = StrategyOnboarder(app_configs, 'pairs', risk_profile_id, 'pairs_frequent', 'JPM,MS', configs['environment'])
+
+    # Setup frequent pairs strategy.
+    strategy_name = 'pairs_frequent'
+    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '1000.00')
+    add_assets(db, portfolio_id, 'TGT', 5)
+    add_assets(db, portfolio_id, 'WMT', 5)
+    onboarder = StrategyOnboarder(app_configs,
+                                  strategy_name,
+                                  risk_profile_id,
+                                  portfolio_id,
+                                  'pairs',
+                                  'TGT,WMT',
+                                  "30/15 14-21 * * 1-5",
+                                  "30 15-20 * * 1-5",
+                                  [['TGT', '5', '3', 'FML'], ['WMT', '5', '3', 'FML']],
+                                  configs['environment'])
     onboarder.deploy(db)
     return 0
 

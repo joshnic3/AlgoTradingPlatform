@@ -1,5 +1,7 @@
 import datetime
 
+from library.log_utils import log_hr
+
 
 def get_run_count(db, script_name, version=None):
     version_index = 3
@@ -22,27 +24,8 @@ def is_script_new(db, script_name):
     return False
 
 
-def get_job_phase_breakdown(db, job_id):
-    return 'FEATURE NOT IMPLEMENTED.'
-    # TODO Calculate as percentage and pp.
-    # TODO Handle jobs finishing unexpectedly.
-    #   If there is no 'TERMINATED' phase the job didnt finish properly.
-
-    # # Load phases into a list to maintain order.
-    # phases = [(p[4], p[5]) for p in db.query_table('jobs', 'id="{0}"'.format(job_id))]
-    #
-    # # Calculate time taken by each phase except TERMINATED.
-    # for phase in phases:
-    #     date_time, status = phase
-    #     if not status == 'TERMINATED':
-    #         pass
-    #
-    #
-    # phase_breakdown = []
-    # return phase_breakdown
-
-
 class Job:
+    # Maybe add a job phase table.
 
     def __init__(self, configs, db):
         self.name = configs['job_name']
@@ -65,9 +48,12 @@ class Job:
                                                                                             '(NEW)' if is_new else ''))
 
     def _set_status(self, status):
+        if self.status:
+            self._db.update_value('jobs', 'status', status, 'id="{}"'.format(self.id))
+            self._db.update_value('jobs', 'date_time', datetime.datetime.now(), 'id="{}"'.format(self.id))
+        else:
+            self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, datetime.datetime.now(), status])
         self.status = status
-        values = [self.id, self.name, self.script, self._version, datetime.datetime.now(), self.status]
-        self._db.insert_row('jobs', values)
 
     def log(self, log):
         log.info('Starting job: {0}'.format(self.__str__()))
@@ -76,7 +62,9 @@ class Job:
         self._set_status(status.upper())
 
     def finished(self, log=None, status=None):
-        self.update_status('TERMINATED')
+        # TODO Calculate average run time and log warn if it is longer.
+        log_hr(log)
+        self.update_status('COMPLETED')
         if log:
             end_time = datetime.datetime.now()
             run_time = (end_time - self.start_time).total_seconds()

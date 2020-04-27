@@ -32,9 +32,10 @@ def log_configs(configs, log):
     config_strs = ['Config "{0}": {1}'.format(str(k), str(configs[k])) for k in configs.keys() if configs[k]]
     for config_str in config_strs:
         log.info(config_str)
+    log_hr(log)
 
 
 def log_hr(log):
-    log.info('-----------------------------------------------------')
+    log.info('-------------------------------------------------------------------------------------------------------')
 
 

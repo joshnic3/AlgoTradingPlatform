@@ -59,4 +59,6 @@ class TickerDataSource(DataSource):
         wildcard = {self._configs['wildcards']['symbols']: symbols_str}
         url = self._prepare_api_call_url(self._configs['request_template'], wildcard)
         result = self._call_api_return_as_dict(url)
-        return self._extract_data(result['companiesPriceList'])
+        if len(symbols) > 1:
+            return self._extract_data(result['companiesPriceList'])
+        return self._extract_data([result])

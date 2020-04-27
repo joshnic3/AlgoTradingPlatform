@@ -8,9 +8,9 @@ def add_twap_required_tickers(db, required_tickers):
         db.insert_row('twap_required_tickers', [twap_required_ticker_id] + required_ticker)
 
 
-def add_strategy(db, name, risk_profile, args, function):
+def add_strategy(db, name, risk_profile, porfolio_id, args, function):
     strategy_id = generate_unique_id(name)
-    values = [strategy_id, name.lower(), risk_profile, args, function.lower(), True]
+    values = [strategy_id, name.lower(), risk_profile, porfolio_id, args, function.lower()]
     db.insert_row('strategies', values)
     return strategy_id
 
@@ -28,7 +28,7 @@ def add_risk_profile(db, values):
 
 def add_portfolio(db, name, exchange_name, capital):
     portfolio_id = generate_unique_id(name)
-    db.insert_row('portfolios', [portfolio_id, name, exchange_name, capital, None])
+    db.insert_row('portfolios', [portfolio_id, exchange_name, capital, None])
     return portfolio_id
 
 

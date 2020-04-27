@@ -8,10 +8,10 @@ import time
 import requests
 
 import strategy.strategy_functions as strategy_functions
-from library.db_utils import Database
+from library.db_utils import Database, generate_unique_id
 from library.ds_utils import TickerDataSource
 from library.file_utils import parse_configs_file
-from library.job_utils import Job, get_job_phase_breakdown
+from library.job_utils import Job
 from library.log_utils import get_log_file_path, setup_log, log_configs
 
 
@@ -37,8 +37,9 @@ class AlpacaInterface:
     def is_exchange_open(self):
         results = requests.get(self.api['CLOCK'], headers=self.headers)
         data = json.loads(results.content.decode('utf-8'))
+        if configs['environment'] == 'dev':
+            return True
         return data['is_open']
-        # return True
 
     def get_orders(self):
         data = {"status": "all"}
@@ -79,17 +80,19 @@ class AlpacaInterface:
 
 class TradeExecutor:
 
-    def __init__(self, db, portfolio_name, exchange):
+    def __init__(self, db, portfolio_id, exchange):
         self._db = db
 
-        # Read portfolio details from database.
-        pf_id, pf_name, exchange_name, capital, updated_by = db.get_one_row('portfolios', 'name="{0}"'.format(portfolio_name))
-        results = db.query_table('assets', 'portfolio_id="{0}"'.format(pf_id))
-        self.portfolio = {"id": pf_id,
-                          "assets": {r[2]: int(r[3]) for r in results},
-                          "capital": float(capital)}
+        # Load latest portfolio data.
+        portfolio_row = db.get_one_row('portfolios', 'id="{0}"'.format(portfolio_id))
+        asset_rows = db.query_table('assets', 'portfolio_id="{0}"'.format(portfolio_row[0]))
+
+        self.portfolio = {"id": portfolio_id,
+                          "assets": {r[2]: int(r[3]) for r in asset_rows},
+                          "capital": float(portfolio_row[2])}
         # This is the passed exchange object, currently has nothing to do with exchange_name.
         self.exchange = exchange
+        self._exchange_name = str(portfolio_row[1])
 
     def calculate_exposure(self, symbol):
         # Assume exposure == maximum possible loss from current position.
@@ -193,19 +196,28 @@ class TradeExecutor:
     def _get_order_data(self, order_id):
         return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
 
-    def update_portfolio_db(self, updated_by):
-        # TODO Portfolio and Asset tables should have new rows added for updates, with datetime and job id
-        # Update capital.
+    def update_portfolio_db(self, updated_by, ds):
+        # Add new row for portfolio with updated capital.
         self._db.update_value('portfolios', 'capital', self.portfolio['capital'], 'id="{}"'.format(self.portfolio['id']))
-
-        # Update job id.
         self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
 
         # Update assets.
-        assets = self.portfolio['assets']
-        for asset in assets:
+        for asset in self.portfolio['assets']:
             units = self.portfolio['assets'][asset]
             self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(asset))
+
+        # Valuate portfolio and record in database.
+        tickers = ds.request_tickers([a for a in self.portfolio['assets']])
+        total_current_value_of_assets = sum([self.portfolio['assets'][asset] * float(tickers[asset])
+                                             for asset in self.portfolio['assets']])
+        portfolio_value = self.portfolio['capital'] + total_current_value_of_assets
+        now = datetime.datetime.now()
+        self._db.insert_row('historical_portfolio_valuations', [
+            generate_unique_id(now),
+            self.portfolio['id'],
+            now.strftime('%Y%m%d%H%M%S'),
+            portfolio_value
+        ])
 
 
 class SignalGenerator:
@@ -221,8 +233,8 @@ class SignalGenerator:
         # Get strategy function and arguments.
         context = StrategyContext(self._db, strategy_name, self._run_date, self._run_time, self._ds)
         strategy_row = self._db.get_one_row('strategies', 'name="{0}"'.format(strategy_name))
-        args = strategy_row[3]
-        func = strategy_row[4]
+        args = strategy_row[4]
+        func = strategy_row[5]
 
         # Check method exists.
         if func not in dir(strategy_functions):
@@ -277,7 +289,6 @@ class StrategyContext:
             raise Exception('Signal not valid.')
         self.signals.append(signal)
 
-
     def set_variable(self, name, new_value):
         variable_id = self._generate_variable_id(name)
         if self.get_variable(name):
@@ -289,12 +300,15 @@ class StrategyContext:
             self.db.insert_row('strategy_variables', values)
         return new_value
 
-    def get_variable(self, name):
+    def get_variable(self, name, default=None):
         variable_id = self._generate_variable_id(name)
         result = self.db.get_one_row('strategy_variables', 'id="{0}"'.format(variable_id))
-        if not result:
+        if result:
+            return result[1]
+        else:
+            if default is not None:
+                return self.set_variable(name, default)
             return None
-        return result[1]
 
 
 class Signal:
@@ -471,6 +485,10 @@ def main():
         # Script cannot go any further from this point, but should not error.
         # TODO add job terminator, and logg as warning.
         raise Exception('No valid signals.')
+        # pass
+    log.info('Generated {0} valid signals.'.format(len(cleaned_signals)))
+    for signal in cleaned_signals:
+        log.info(str(signal))
 
     # Calculate risk profile {string(strategy name): float(risk value)}.
     risk_profile = generate_risk_profile(db, configs['strategy'])
@@ -487,7 +505,8 @@ def main():
 
     # Initiate trade executor.
     job.update_status('Proposing trades')
-    trade_executor = TradeExecutor(db, '{0}_portfolio'.format(configs['strategy']), exchange)
+    porfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[3]
+    trade_executor = TradeExecutor(db, porfolio_id, exchange)
 
     # Prepare trades.
     proposed_trades = trade_executor.propose_trades(configs['strategy'], cleaned_signals, risk_profile)
@@ -499,10 +518,10 @@ def main():
     # Process trades.
     job.update_status('Processing trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, log)
-    trade_executor.update_portfolio_db(job.id)
+    trade_executor.update_portfolio_db(job.id, ds)
 
     # Log summary.
-    log.info('{0}/{1} trades successful.'.format(len(processed_trades), len(executed_order_ids)))
+    log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
 
     job.finished(log)
 
