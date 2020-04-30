@@ -147,5 +147,5 @@ if __name__ == '__main__':
     global configs
     configs = parse_cmdline_args('algo_trading_platform')
 
-    app.run('0.0.0.0')
-    # app.run()
+    # app.run('0.0.0.0')
+    app.run()

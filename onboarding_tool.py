@@ -85,7 +85,7 @@ class StrategyOnboarder:
 
     @staticmethod
     def _create_cron_job(template, schedule):
-        # TODO seemed to be creating duplicate jobs.
+        # TODO Creating duplicate jobs.
         cron = CronTab(user=os.getlogin())
         command = ' '.join(template)
         job = cron.new(command=command)
@@ -187,7 +187,7 @@ def main():
 
     # Setup frequent pairs strategy.
     strategy_name = 'pairs_frequent'
-    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '1000.00')
+    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '5000.00')
     add_assets(db, portfolio_id, 'TGT', 5)
     add_assets(db, portfolio_id, 'WMT', 5)
     onboarder = StrategyOnboarder(app_configs,
@@ -196,7 +196,7 @@ def main():
                                   portfolio_id,
                                   'pairs',
                                   'TGT,WMT',
-                                  "30/15 14-21 * * 1-5",
+                                  "*/15 14-21 * * 1-5",
                                   "30 15-20 * * 1-5",
                                   [['TGT', '5', '3', 'FML'], ['WMT', '5', '3', 'FML']],
                                   configs['environment'])

@@ -11,7 +11,7 @@ def basic(context, symbol):
 
     # Calculate values.
     mean_value = mean(previous_values)
-    threshold = mean_value * 0.02
+    threshold = mean_value * 0.00
 
     # Generate signal.
     if latest_value > mean_value + threshold:
@@ -44,7 +44,7 @@ def pairs(context, symbol_a, symbol_b):
     current_mean_difference = float(mean(relative_differences))
 
     # Generate signal.
-    threshold = 1.1
+    threshold = 1.0
     if mean_relative_difference and current_mean_difference > float(mean_relative_difference) * threshold:
         # Decide which ticker is differing from the trend.
         # +ve = up, -ve = down
@@ -55,11 +55,11 @@ def pairs(context, symbol_a, symbol_b):
         if changing_ticker == symbol_a:
             # If a's value is rising buy b, if a's value is dropping sell b.
             order_type = 'buy' if a_change_direction > 0 else 'sell'
-            context.add_signal(symbol_b, order_type=order_type, target_value=utils.get_latest_value(symbol_b))
+            context.add_signal(symbol_b, order_type=order_type, target_value=utils.get_latest_value(context, symbol_b))
         else:
             # If b's value is rising buy a, if b's value is dropping sell a.
             order_type = 'buy' if b_change_direction > 0 else 'sell'
-            context.add_signal(symbol_a, order_type=order_type, target_value=utils.get_latest_value(symbol_a))
+            context.add_signal(symbol_a, order_type=order_type, target_value=utils.get_latest_value(context, symbol_a))
     else:
         # Hold both.
         context.add_signal(symbol_a)

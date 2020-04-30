@@ -336,15 +336,16 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/ds_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/ds_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/job_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/job_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/log_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/log_utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/onboarding_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/onboarding_utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -399,7 +400,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.web_service_sandbox">
+  <component name="RunManager" selected="Python.strategy_batch">
     <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -455,7 +456,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/onboarding_tool.py" />
-      <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -c $PROJECT_DIR$/../drive/setup/algo_trading_platform_config.json" />
+      <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e staging -c $PROJECT_DIR$/../drive/setup/algo_trading_platform_config.json" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -514,9 +515,9 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.web_service_sandbox" />
-        <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.strategy_batch" />
+        <item itemvalue="Python.data_loader" />
+        <item itemvalue="Python.web_service_sandbox" />
         <item itemvalue="Python.exchange_test" />
       </list>
     </recent_temporary>

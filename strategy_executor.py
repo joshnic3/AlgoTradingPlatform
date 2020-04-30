@@ -107,15 +107,13 @@ class TradeExecutor:
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
         strategy_risk_profile = risk_profile[strategy]
         signal, symbol, no_of_units, target_price = proposed_trade
+        current_exposure = self.calculate_exposure(symbol)
+
         if 'max_exposure' in strategy_risk_profile:
             if signal == 'buy':
-                potential_exposure = self.calculate_exposure(symbol) + (no_of_units * target_price)
-            if signal == 'sell':
-                potential_exposure = self.calculate_exposure(symbol) - (no_of_units * target_price)
-            else:
-                potential_exposure = 0
-            if potential_exposure > strategy_risk_profile['max_exposure']:
-                return False
+                potential_exposure = current_exposure + (no_of_units * target_price)
+                if potential_exposure > strategy_risk_profile['max_exposure']:
+                    return False
         # TODO Implement more risk checks.
         if 'min_liquidity' in risk_profile:
             return True
@@ -249,7 +247,7 @@ class SignalGenerator:
             signal = error
 
         # Save signals to db or handle strategy errors.
-        if not signal:
+        if not isinstance(signal, Signal):
             self._log.error('Error evaluating strategy "{0}": {1}'.format(strategy_name, signal))
 
         return signal
@@ -528,3 +526,6 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
+# TODO can still sell if no assets.
