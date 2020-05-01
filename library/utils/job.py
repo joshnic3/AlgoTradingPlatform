@@ -1,6 +1,6 @@
 import datetime
 
-from library.log_utils import log_hr
+from library.utils.log import log_hr
 
 
 def get_run_count(db, script_name, version=None):

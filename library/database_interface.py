@@ -2,8 +2,6 @@ import os
 import datetime
 import sqlite3
 
-from library.file_utils import get_environment_specific_path, parse_wildcards
-
 
 def generate_unique_id(seed):
     return str(abs(hash(str(seed) + datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))

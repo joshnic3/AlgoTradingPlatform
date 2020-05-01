@@ -1,7 +1,7 @@
 import requests
 
-from library.db_utils import Database
-from library.file_utils import read_json_file
+from library.database_interface import Database
+from library.utils.file import read_json_file
 
 
 # Data source db is constant so can be initiated in a function.

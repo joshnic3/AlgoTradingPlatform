@@ -4,10 +4,10 @@ import sys
 
 from crontab import CronTab
 
-from library.file_utils import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, copy_file
-from library.onboarding_utils import add_twap_required_tickers, add_data_source, \
+from library.utils.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, copy_file
+from library.utils.onboarding import add_twap_required_tickers, add_data_source, \
     add_strategy, add_risk_profile, add_portfolio, add_assets
-from library.db_utils import initiate_database
+from library.database_interface import initiate_database
 
 
 class StrategyOnboarder:

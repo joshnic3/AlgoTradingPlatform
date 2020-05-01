@@ -1,12 +1,13 @@
-import optparse
 import json
+import optparse
 import os
 import sys
 
 from flask import Flask, request
 
-from library.db_utils import Database, query_to_dict
-from library.file_utils import parse_configs_file
+from library.database_interface import Database
+from library.exchange_interface import AlpacaInterface
+from library.utils.file import parse_configs_file
 
 app = Flask(__name__)
 
@@ -15,6 +16,13 @@ def response(status, data=None):
     if data:
         return app.response_class(response=json.dumps(data), status=status, mimetype='application/json')
     return app.response_class(status=status, mimetype='application/json')
+
+
+@app.route('/exchange_open')
+def exchange_open():
+    # Create an exchange instance. Always use simulator mode as we don't need/want to execute any real world trades.
+    exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'], simulator=True)
+    return response(200, str(exchange.is_exchange_open()))
 
 
 @app.route('/twaps')
@@ -143,7 +151,6 @@ def parse_cmdline_args(app_name):
 
 
 if __name__ == '__main__':
-    # TODO is exchange open get, returns bool, used in details section of terminal
     # Setup configs.
     global configs
     configs = parse_cmdline_args('algo_trading_platform')
