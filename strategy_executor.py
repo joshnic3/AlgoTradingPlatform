@@ -16,7 +16,6 @@ from library.log_utils import get_log_file_path, setup_log, log_configs
 
 
 class AlpacaInterface:
-    # TODO Handle response errors.
 
     def __init__(self, key_id, secret_key, simulator=False):
         if simulator:
@@ -31,24 +30,45 @@ class AlpacaInterface:
         }
 
         if not self.is_exchange_open():
-            # TODO also check if authorised here and raise appropriate exception.
             raise Exception('Exchange is closed.')
 
+    def _request_get(self, url, params=None, data=None):
+        # Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
+        results = requests.get(url, data=data, params=params, headers=self.headers)
+        if results.status_code == 200:
+            return json.loads(results.content.decode('utf-8'))
+        else:
+            error_message = json.loads(results.text)['message']
+            raise Exception('Response error ({0}): {1}'.format(results.status_code, error_message))
+
+    def _create_order(self, symbol, units, side):
+        # Assuming all orders at this point are valid.
+        # Will offer limit orders in the future.
+        data = {"symbol": symbol, "qty": units, "side": side, "type": "market", "time_in_force": "gtc"}
+        # Ensure can sell if required.
+        if side == 'sell' and self.get_position(symbol, 'qty') is None:
+            raise Exception('There is no "{0}" in portfolio.'.format(symbol))
+        results = requests.post(self.api['ORDERS'], json=data, headers=self.headers)
+        # TODO Check if response has been excepted. Don't worry about the order yet, we check that later.
+        return json.loads(results.content.decode('utf-8'))
+
     def is_exchange_open(self):
-        results = requests.get(self.api['CLOCK'], headers=self.headers)
-        data = json.loads(results.content.decode('utf-8'))
+        data = self._request_get(self.api['CLOCK'])
         if configs['environment'] == 'dev':
             return True
         return data['is_open']
 
     def get_orders(self):
-        data = {"status": "all"}
-        results = requests.get(self.api['ORDERS'], params=data, headers=self.headers, )
-        return json.loads(results.content.decode('utf-8'))
+        return self._request_get(self.api['ORDERS'], params={"status": "all"})
+
+    def get_equity(self):
+        data = self._request_get(self.api['ACCOUNT'])
+        if 'equity' in data:
+            return float(data['equity'])
+        return None
 
     def get_position(self, symbol, key=None):
-        results = requests.get('{}/{}'.format(self.api['POSITIONS'], symbol), headers=self.headers)
-        data = json.loads(results.content.decode('utf-8'))
+        data = self._request_get('{}/{}'.format(self.api['POSITIONS'], symbol))
         if 'code' in data:
             return 0
         if key in data:
@@ -66,16 +86,6 @@ class AlpacaInterface:
         if not results['id']:
             return None
         return results['id']
-
-    def _create_order(self, symbol, units, side):
-        # Assuming all orders at this point are valid.
-        # Will offer limit orders in the future.
-        data = {"symbol": symbol, "qty": units, "side": side, "type": "market", "time_in_force": "gtc"}
-        # Ensure can sell if required.
-        if side == 'sell' and self.get_position(symbol, 'qty') is None:
-            raise Exception('There is no "{0}" in portfolio.'.format(symbol))
-        results = requests.post(self.api['ORDERS'], json=data, headers=self.headers)
-        return json.loads(results.content.decode('utf-8'))
 
 
 class TradeExecutor:
@@ -103,6 +113,13 @@ class TradeExecutor:
             current_value = float(data['current_price'])
             return units * current_value
         return 0.0
+
+    def sync_portfolio_with_exchange(self):
+        capital = self.exchange.get_equity()
+        if capital:
+            self.portfolio['capital'] = capital
+        else:
+            raise Exception('Could not sync portfolio with exchange.')
 
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
         strategy_risk_profile = risk_profile[strategy]
@@ -137,7 +154,11 @@ class TradeExecutor:
 
                     # Check portfolio has sufficient capital.
                     if signal.signal == 'buy':
+                        # Calculate required capital.
                         required_capital = units * signal.target_value
+
+                        # Ensure portfolio's capital is up-to-date.
+                        self.sync_portfolio_with_exchange()
                         if required_capital > float(self.portfolio['capital']):
                             raise Exception('Required capital has exceeded limits.')
                     trades.append(trade)
@@ -195,6 +216,9 @@ class TradeExecutor:
         return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
 
     def update_portfolio_db(self, updated_by, ds):
+        # Ensure capital is up-to-date with exchange.
+        self.sync_portfolio_with_exchange()
+
         # Add new row for portfolio with updated capital.
         self._db.update_value('portfolios', 'capital', self.portfolio['capital'], 'id="{}"'.format(self.portfolio['id']))
         self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
@@ -481,7 +505,7 @@ def main():
 
     if not cleaned_signals:
         # Script cannot go any further from this point, but should not error.
-        # TODO add job terminator, and logg as warning.
+        # TODO add job terminator, and log as warning.
         raise Exception('No valid signals.')
         # pass
     log.info('Generated {0} valid signals.'.format(len(cleaned_signals)))
@@ -503,8 +527,8 @@ def main():
 
     # Initiate trade executor.
     job.update_status('Proposing trades')
-    porfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[3]
-    trade_executor = TradeExecutor(db, porfolio_id, exchange)
+    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[3]
+    trade_executor = TradeExecutor(db, portfolio_id, exchange)
 
     # Prepare trades.
     proposed_trades = trade_executor.propose_trades(configs['strategy'], cleaned_signals, risk_profile)
@@ -527,5 +551,3 @@ def main():
 if __name__ == "__main__":
     sys.exit(main())
 
-
-# TODO can still sell if no assets.

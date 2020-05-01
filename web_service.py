@@ -143,9 +143,10 @@ def parse_cmdline_args(app_name):
 
 
 if __name__ == '__main__':
+    # TODO is exchange open get, returns bool, used in details section of terminal
     # Setup configs.
     global configs
     configs = parse_cmdline_args('algo_trading_platform')
 
-    # app.run('0.0.0.0')
-    app.run()
+    app.run('0.0.0.0')
+    # app.run()

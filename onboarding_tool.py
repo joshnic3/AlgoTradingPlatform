@@ -68,6 +68,7 @@ class StrategyOnboarder:
         script_path = os.path.join(code_path, '{0}.py'.format(script_name))
         data_loader_args = self._generate_script_args(script_name, strategy_name)
         cron_job_template = [interpreter, script_path, data_loader_args]
+        self._reset_cron_jobs()
         self._create_cron_job(cron_job_template, schedule)
 
     def create_strategy_executor_job(self, strategy_names, schedule):
@@ -81,6 +82,7 @@ class StrategyOnboarder:
         script_path = os.path.join(code_path, '{0}.py'.format(script_name))
         data_loader_args = self._generate_script_args('strategy_executor', ','.join(strategy_names))
         cron_job_template = [interpreter, script_path, data_loader_args]
+        self._reset_cron_jobs()
         self._create_cron_job(cron_job_template, schedule)
 
     @staticmethod
@@ -187,7 +189,7 @@ def main():
 
     # Setup frequent pairs strategy.
     strategy_name = 'pairs_frequent'
-    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '5000.00')
+    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '3844.05')
     add_assets(db, portfolio_id, 'TGT', 5)
     add_assets(db, portfolio_id, 'WMT', 5)
     onboarder = StrategyOnboarder(app_configs,

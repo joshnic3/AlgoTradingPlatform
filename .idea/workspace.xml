@@ -343,7 +343,6 @@
       <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/file_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
@@ -378,14 +377,14 @@
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
+      <recent name="$PROJECT_DIR$/../drive/setup" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/strategies" />
       <recent name="$PROJECT_DIR$/../drive/data" />
       <recent name="$PROJECT_DIR$/library" />
-    </key>
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
-      <recent name="$PROJECT_DIR$/../drive/setup" />
     </key>
   </component>
   <component name="RunDashboard">
