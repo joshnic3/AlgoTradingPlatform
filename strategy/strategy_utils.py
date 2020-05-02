@@ -1,8 +1,5 @@
 import datetime
 
-# TODO Strat variables tables, creates unique id from hashing strat id and viable name, managed through context
-# Add signal util in context
-
 
 def get_latest_value(context, symbol):
     # TODO Return relevant error if required data is not available, error should be visible in logs.
@@ -13,7 +10,7 @@ def get_latest_value(context, symbol):
     return float(results[0][1])
 
 
-# TODO add param to expect x values? minimun values might be useful for some strat calcs.
+# TODO add param to expect atleast x values? minimun values might be useful for some strat calcs.
 def get_values_in_datetime_range(context, symbol, from_after, until_before):
     # TODO Return relevant error if required data is not available, error should be visible in logs.
     db = context.db

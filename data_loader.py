@@ -13,56 +13,6 @@ from library.utils.file import parse_configs_file
 from library.utils.job import Job
 from library.utils.log import get_log_file_path, setup_log, log_configs, log_hr
 
-configs = {}
-
-
-class TWAP:
-
-    def __init__(self, symbol):
-        self.symbol = symbol
-        self.ticks = []
-        self.twap = None
-
-    def __str__(self):
-        formatted_ticks = [(t[0], t[1]) for t in self.ticks]
-        values = [t[1] for t in self.ticks]
-        times = [t[0] for t in self.ticks]
-        spread = max(values) - min(values)
-        return '[Symbol: {0}, TWAP: {1}, Start Time: {2}, Ticks: {3}, Spread: {4}]'.format(self.symbol,
-                                                                                          self.twap,
-                                                                                          min(times).strftime(
-                                                                                              '%H:%M.%S'),
-                                                                                          len(formatted_ticks), spread)
-
-    def _is_stale(self, value):
-        if not self.ticks or float(value) != self.ticks[-1][1]:
-            return False
-        return True
-
-    def add_tick(self, date_time, value):
-        self.ticks.append((date_time, float(value)))
-        if self._is_stale(value):
-            return self.symbol, 'STALE_TICKER'
-        return None
-
-    def calculate_twap(self):
-        self.twap = 0
-        if self.ticks:
-            self.twap = sum([float(t[1]) for t in self.ticks])/len(self.ticks)
-        return self.twap
-
-    def save_to_db(self, db):
-        twap_id = generate_unique_id(self.symbol)
-        times = [t[0] for t in self.ticks]
-        start_time = min(times)
-        # This is the time of the last tick, so will be interval * count minutes early.
-        end_time = max(times)
-        values = [twap_id, start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
-        db.insert_row('twaps', values)
-
-    def log_twap(self, log):
-        log.info(self.__str__())
-
 
 class TWAPDataLoader:
 
@@ -93,6 +43,56 @@ class TWAPDataLoader:
             twap.save_to_db(self._db)
             if log:
                 log.info(twap.__str__())
+
+
+class TWAP:
+
+    def __init__(self, symbol):
+        self.symbol = symbol
+        self.ticks = []
+        self.twap = None
+
+    def __str__(self):
+        formatted_ticks = [(t[0], t[1]) for t in self.ticks]
+        values = [t[1] for t in self.ticks]
+        times = [t[0] for t in self.ticks]
+        spread = max(values) - min(values)
+        return '[Symbol: {0}, TWAP: {1}, Start Time: {2}, Ticks: {3}, Spread: {4}]'.format(self.symbol,
+                                                                                           self.twap,
+                                                                                           min(times).strftime(
+                                                                                              '%H:%M.%S'),
+                                                                                           len(formatted_ticks), spread)
+
+    def _is_stale(self, value):
+        if not self.ticks:
+            return False
+        if value == self.ticks[-1][1]:
+            return True
+        return False
+
+    def add_tick(self, date_time, value):
+        self.ticks.append((date_time, float(value)))
+        if self._is_stale(float(value)):
+            return self.symbol, 'STALE_TICKER'
+        return None
+
+    def calculate_twap(self):
+        self.twap = 0
+        if self.ticks:
+            self.twap = sum([float(t[1]) for t in self.ticks])/len(self.ticks)
+        return self.twap
+
+    def save_to_db(self, db):
+        twap_id = generate_unique_id(self.symbol)
+        times = [t[0] for t in self.ticks]
+        start_time = min(times)
+        # This is the time of the last tick, so will be interval * count minutes early.
+        end_time = max(times)
+        values = [twap_id, start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
+        db.insert_row('twaps', values)
+
+    def log_twap(self, log):
+        log.info(self.__str__())
 
 
 def worker_func(log, worker_id, group, data_loader):
@@ -146,7 +146,7 @@ def main():
     configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(configs['logs_root_path'], configs['script_name'])
+    log_path = get_log_file_path(configs['logs_root_path'], configs['job_name'])
     log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
     log_configs(configs, log)
 

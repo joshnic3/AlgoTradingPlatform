@@ -29,6 +29,9 @@ class TradeExecutor:
         self.exchange = exchange
         self._exchange_name = str(portfolio_row[1])
 
+    def _get_order_data(self, order_id):
+        return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
+
     def calculate_exposure(self, symbol):
         # Assume exposure == maximum possible loss from current position.
         # Get this from exchange?
@@ -40,7 +43,7 @@ class TradeExecutor:
         return 0.0
 
     def sync_portfolio_with_exchange(self):
-        # TODO Sync assets too.
+        # TODO Sync assets with exchange too.
         capital = self.exchange.get_equity()
         if capital:
             self.portfolio['capital'] = capital
@@ -57,7 +60,6 @@ class TradeExecutor:
                 potential_exposure = current_exposure + (no_of_units * target_price)
                 if potential_exposure > strategy_risk_profile['max_exposure']:
                     return False
-        # TODO Implement more risk checks.
         if 'min_liquidity' in risk_profile:
             return True
         return True
@@ -65,28 +67,40 @@ class TradeExecutor:
     def propose_trades(self, strategy, signals, risk_profile):
         trades = []
         for signal in signals:
+            units = 1
+            good_trade = True
             if signal.signal != 'hold':
-                # Calculate number of units for trade.
-                units = 1
-
                 # Create trade tuple.
                 trade = (signal.signal, signal.symbol, units, signal.target_value)
 
-                # Check trade is valid.
-                if self.meets_risk_profile(strategy, trade, risk_profile):
-                    # Check symbol is in portfolio.
-                    if signal.symbol not in self.portfolio['assets']:
-                        raise Exception('Asset "{0}" not found in portfolio.'.format(signal.symbol))
+                # Check symbol is in portfolio.
+                if good_trade and signal.symbol not in self.portfolio['assets']:
+                    # Asset not found in portfolio.
+                    good_trade = False
 
-                    # Check portfolio has sufficient capital.
-                    if signal.signal == 'buy':
-                        # Calculate required capital.
-                        required_capital = units * signal.target_value
+                # Check portfolio has enough units to sell.
+                if good_trade and signal.signal == 'sell':
+                    units_held = self.portfolio['assets'][signal.symbol]
+                    if units_held - units < 0:
+                        # Don't sell assets you don't have.
+                        good_trade = False
 
-                        # Ensure portfolio's capital is up-to-date.
-                        self.sync_portfolio_with_exchange()
-                        if required_capital > float(self.portfolio['capital']):
-                            raise Exception('Required capital has exceeded limits.')
+                # Check portfolio has sufficient capital.
+                if good_trade and signal.signal == 'buy':
+                    # Calculate required capital.
+                    required_capital = units * signal.target_value
+
+                    # Ensure portfolio's capital is up-to-date.
+                    self.sync_portfolio_with_exchange()
+                    if required_capital > float(self.portfolio['capital']):
+                        # Raise Required capital has exceeded limits.
+                        good_trade = False
+
+                # Check trade satisfies risk requirements.
+                if good_trade and not self.meets_risk_profile(strategy, trade, risk_profile):
+                    good_trade = False
+
+                if good_trade:
                     trades.append(trade)
         return trades
 
@@ -121,8 +135,6 @@ class TradeExecutor:
             if status == 'filled':
                 trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
 
-            # trade = (data['symbol'], data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
-
             if trade:
                 # Update portfolio capital.
                 change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == 'sell' else -1
@@ -137,9 +149,6 @@ class TradeExecutor:
             else:
                 log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
         return processed_trades
-
-    def _get_order_data(self, order_id):
-        return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
 
     def update_portfolio_db(self, updated_by, ds):
         # Ensure capital is up-to-date with exchange.
@@ -195,15 +204,11 @@ class SignalGenerator:
             signal = eval('strategy_functions.{0}(context,{1})'.format(func, args_str))
         except Exception as error:
             signal = error
-
-        # Save signals to db or handle strategy errors.
-        if not isinstance(signal, Signal):
-            self._log.error('Error evaluating strategy "{0}": {1}'.format(strategy_name, signal))
+            self._log.error('Error evaluating strategy "{0}": {1}'.format(strategy_name, error))
 
         return signal
 
-    def evaluate_strategies(self, strategy):
-        # Evaluate strategy.
+    def generate_signals(self, strategy):
         return self._evaluate_strategy(strategy)
 
 
@@ -265,14 +270,11 @@ class Signal:
         self.id = signal_id
         self.symbol = None
         self.signal = None
-        # "target" because can always sell for more or buy for less I assume.
         self.target_value = 0
-        # TODO Allow different order types.
         self.order_type = 'market'
         self.datetime = datetime.datetime.now()
 
     def __str__(self):
-        # target_value_pp = '' if self.signal == 'hold' else ' @ {0}'.format(str(self.target_value))
         market_order_pp = '' if self.signal == 'hold' else ' @ market value'
         return '[{0} {1}{2}]'.format(self.signal, self.symbol, market_order_pp)
 
@@ -401,7 +403,7 @@ def main():
     configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(configs['logs_root_path'], configs['script_name'])
+    log_path = get_log_file_path(configs['logs_root_path'], configs['job_name'])
     log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
     log_configs(configs, log)
 
@@ -423,7 +425,7 @@ def main():
     job.update_status('Evaluating strategies')
     signal_generator = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
     # Only takes on strategy.
-    signals = signal_generator.evaluate_strategies(configs['strategy'])
+    signals = signal_generator.generate_signals(configs['strategy'])
 
     job.update_status('Processing signals')
     # Check for conflicting signals [Signals].
@@ -431,14 +433,13 @@ def main():
 
     if not cleaned_signals:
         # Script cannot go any further from this point, but should not error.
-        # TODO add job terminator, and log as warning.
         raise Exception('No valid signals.')
-        # pass
-    log.info('Generated {0} valid signals.'.format(len(cleaned_signals)))
+
+    log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
     for signal in cleaned_signals:
         log.info(str(signal))
 
-    # Calculate risk profile {string(strategy name): float(risk value)}.
+    # Calculate risk profile {'strategy name': {'check name': check_threshold}}.
     risk_profile = generate_risk_profile(db, configs['strategy'])
 
     # Initiate exchange.
@@ -448,7 +449,6 @@ def main():
         exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'])
     else:
         # Script cannot go any further from this point.
-        # TODO add (generic bad configs) job terminator.
         raise Exception('Mode "{0}" is not valid.'.format(configs['mode']))
 
     # Initiate trade executor.
@@ -466,6 +466,8 @@ def main():
     # Process trades.
     job.update_status('Processing trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, log)
+
+    log.info('Updated portfolio in database.')
     trade_executor.update_portfolio_db(job.id, ds)
 
     # Log summary.

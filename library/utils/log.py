@@ -3,10 +3,10 @@ import os
 import logging
 
 
-def get_log_file_path(root_path, script_name):
+def get_log_file_path(root_path, job_name):
     today = datetime.datetime.now()
     today_str = today.strftime("%Y%m%d%H%M%S")
-    file_name = '{0}_{1}.log'.format(script_name, today_str)
+    file_name = '{0}_{1}.log'.format(job_name, today_str)
     log_file_path_template = [root_path, file_name]
     return os.path.join(*log_file_path_template)
 

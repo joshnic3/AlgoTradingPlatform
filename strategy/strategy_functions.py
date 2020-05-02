@@ -21,7 +21,6 @@ def basic(context, symbol):
     else:
         context.add_signal(symbol, order_type='hold')
 
-    # return context.signal.
     return context.signals
 
 
@@ -43,8 +42,10 @@ def pairs(context, symbol_a, symbol_b):
     relative_differences = [abs(a - b) for a, b in zip(a_values, b_values)]
     current_mean_difference = float(mean(relative_differences))
 
-    # Generate signal.
+    # Increase if buying/selling too much, or exhausting capital too quickly.
     threshold = 1.0
+
+    # Generate signal.
     if mean_relative_difference and current_mean_difference > float(mean_relative_difference) * threshold:
         # Decide which ticker is differing from the trend.
         # +ve = up, -ve = down
