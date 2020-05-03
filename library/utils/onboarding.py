@@ -25,9 +25,9 @@ def add_risk_profile(db, values):
     return risk_profile_id
 
 
-def add_portfolio(db, name, exchange_name, capital):
+def add_portfolio(db, name, exchange_name, capital, weighting):
     portfolio_id = generate_unique_id(name)
-    db.insert_row('portfolios', [portfolio_id, exchange_name, capital, None])
+    db.insert_row('portfolios', [portfolio_id, exchange_name, capital, weighting, None])
     return portfolio_id
 
 

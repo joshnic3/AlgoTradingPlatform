@@ -173,7 +173,7 @@ def main():
     # Setup basic limit strategy.
     # Add portfolio.
     strategy_name = 'basic_limit'
-    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '750.00')
+    portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_name), 'alpaca', '0.00', 0.25)
     add_assets(db, portfolio_id, 'JPM', 0)
     onboarder = StrategyOnboarder(app_configs,
                                   strategy_name,
@@ -189,7 +189,7 @@ def main():
 
     # Setup frequent pairs strategy.
     strategy_name = 'pairs_frequent'
-    portfolio_id = add_portfolio(db, '{0}_portfolio'.format(strategy_name), 'alpaca', '3844.05')
+    portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_name), 'alpaca', '0.00', 0.75)
     add_assets(db, portfolio_id, 'TGT', 5)
     add_assets(db, portfolio_id, 'WMT', 5)
     onboarder = StrategyOnboarder(app_configs,

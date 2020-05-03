@@ -50,10 +50,10 @@ class AlpacaInterface:
     def get_orders(self):
         return self._request_get(self.api['ORDERS'], params={"status": "all"})
 
-    def get_equity(self):
+    def get_cash(self):
         data = self._request_get(self.api['ACCOUNT'])
-        if 'equity' in data:
-            return float(data['equity'])
+        if 'cash' in data:
+            return float(data['cash'])
         return None
 
     def get_position(self, symbol, key=None):

@@ -25,7 +25,7 @@ class TradeExecutor:
 
         self.portfolio = {"id": portfolio_id,
                           "assets": {r[2]: int(r[3]) for r in asset_rows},
-                          "capital": float(portfolio_row[2])}
+                          "cash": float(portfolio_row[2])}
         # This is the passed exchange object, currently has nothing to do with exchange_name.
         self.exchange = exchange
         self._exchange_name = str(portfolio_row[1])
@@ -44,12 +44,21 @@ class TradeExecutor:
         return 0.0
 
     def sync_portfolio_with_exchange(self):
-        # TODO Sync assets with exchange too.
-        capital = self.exchange.get_equity()
-        if capital:
-            self.portfolio['capital'] = capital
+        # Sync weighted cash value for strategy portfolio.
+        weighting = float(self._db.get_one_row('portfolios', 'id="{0}"'.format(self.portfolio['id']))[3])
+        cash = self.exchange.get_cash()
+        if cash:
+            self.portfolio['cash'] = cash * weighting
         else:
             raise Exception('Could not sync portfolio with exchange.')
+
+        # Sync with exchange too.
+        for asset in self.portfolio['assets']:
+            position = self.exchange.get_position(symbol=asset)
+            if 'qty' in position:
+                self.portfolio['assets'][asset] = float(position['qty'])
+            else:
+                raise Exception('Could not sync portfolio with exchange.')
 
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
         strategy_risk_profile = risk_profile[strategy]
@@ -66,6 +75,10 @@ class TradeExecutor:
         return True
 
     def propose_trades(self, strategy, signals, risk_profile):
+        # TODO This only assumes one trade will be made, total values of all potential trades need to be added up,
+        #  e.g. total potential exposure.
+        # works fine for now as each run only processes one signal. And atm my strats will only buy/sell one asset.
+        self.sync_portfolio_with_exchange()
         trades = []
         for signal in signals:
             units = 1
@@ -92,8 +105,7 @@ class TradeExecutor:
                     required_capital = units * signal.target_value
 
                     # Ensure portfolio's capital is up-to-date.
-                    self.sync_portfolio_with_exchange()
-                    if required_capital > float(self.portfolio['capital']):
+                    if required_capital > float(self.portfolio['cash']):
                         # Raise Required capital has exceeded limits.
                         good_trade = False
 
@@ -139,7 +151,7 @@ class TradeExecutor:
             if trade:
                 # Update portfolio capital.
                 change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == 'sell' else -1
-                self.portfolio['capital'] += change_in_capital
+                self.portfolio['cash'] += change_in_capital
 
                 # Update portfolio assets.
                 change_in_units = int(trade[1]) * 1 if data['side'] == 'buy' else -1
@@ -156,7 +168,7 @@ class TradeExecutor:
         self.sync_portfolio_with_exchange()
 
         # Add new row for portfolio with updated capital.
-        self._db.update_value('portfolios', 'capital', self.portfolio['capital'], 'id="{}"'.format(self.portfolio['id']))
+        self._db.update_value('portfolios', 'cash', self.portfolio['cash'], 'id="{}"'.format(self.portfolio['id']))
         self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
 
         # Update assets.
@@ -168,7 +180,7 @@ class TradeExecutor:
         tickers = ds.request_tickers([a for a in self.portfolio['assets']])
         total_current_value_of_assets = sum([self.portfolio['assets'][asset] * float(tickers[asset])
                                              for asset in self.portfolio['assets']])
-        portfolio_value = self.portfolio['capital'] + total_current_value_of_assets
+        portfolio_value = self.portfolio['cash'] + total_current_value_of_assets
         now = datetime.datetime.now()
         self._db.insert_row('historical_portfolio_valuations', [
             generate_unique_id(now),

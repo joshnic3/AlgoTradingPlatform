@@ -11,7 +11,7 @@ def basic(context, symbol):
 
     # Calculate values.
     mean_value = mean(previous_values)
-    threshold = mean_value * 0.00
+    threshold = mean_value * 0.1
 
     # Generate signal.
     if latest_value > mean_value + threshold:
@@ -43,7 +43,7 @@ def pairs(context, symbol_a, symbol_b):
     current_mean_difference = float(mean(relative_differences))
 
     # Increase if buying/selling too much, or exhausting capital too quickly.
-    threshold = 1.0
+    threshold = 1.05
 
     # Generate signal.
     if mean_relative_difference and current_mean_difference > float(mean_relative_difference) * threshold:
