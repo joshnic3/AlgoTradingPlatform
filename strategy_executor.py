@@ -55,10 +55,11 @@ class TradeExecutor:
         # Sync with exchange too.
         for asset in self.portfolio['assets']:
             position = self.exchange.get_position(symbol=asset)
-            if 'qty' in position:
-                self.portfolio['assets'][asset] = float(position['qty'])
+            if position and 'qty' in position:
+                self.portfolio['assets'][asset] = int(position['qty'])
             else:
-                raise Exception('Could not sync portfolio with exchange.')
+                self.portfolio['assets'][asset] = 0
+                globals.log.warning('No position found on exchange for {0}'.format(asset))
 
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
         strategy_risk_profile = risk_profile[strategy]

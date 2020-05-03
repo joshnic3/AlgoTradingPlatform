@@ -23,10 +23,12 @@ class AlpacaInterface:
             if globals.configs['environment'] == 'prod':
                 raise Exception('Exchange is closed.')
 
-    def _request_get(self, url, params=None, data=None):
+    def _request_get(self, url, params=None, data=None, handle_error=False):
         # Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
         results = requests.get(url, data=data, params=params, headers=self.headers)
         if results.status_code == 200:
+            return json.loads(results.content.decode('utf-8'))
+        elif handle_error:
             return json.loads(results.content.decode('utf-8'))
         else:
             error_message = json.loads(results.text)['message']
@@ -57,7 +59,7 @@ class AlpacaInterface:
         return None
 
     def get_position(self, symbol, key=None):
-        data = self._request_get('{}/{}'.format(self.api['POSITIONS'], symbol))
+        data = self._request_get('{}/{}'.format(self.api['POSITIONS'], symbol), handle_error=True)
         if 'code' in data:
             return 0
         if key in data:
