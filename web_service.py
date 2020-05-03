@@ -125,9 +125,9 @@ def portfolios():
         valuation_values = [float(r[3]) for r in historical_valuations_rows]
 
         data = {"assets": {r[2]: int(r[3]) for r in asset_rows},
-                "capital": float(portfolio_row[2]),
+                "cash": float(portfolio_row[2]),
                 "historical_valuations": list(zip(valuation_date_times, valuation_values)),
-                "updated_by": portfolio_row[3]}
+                "updated_by": portfolio_row[4]}
         return response(200, data)
 
     portfolio_ids = [r[0] for r in db.query_table('portfolios')]

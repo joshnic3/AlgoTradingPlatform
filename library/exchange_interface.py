@@ -19,7 +19,8 @@ class AlpacaInterface:
         }
 
         if not self.is_exchange_open():
-            globals.log.warn('Exchange is closed.')
+            if globals.log:
+                globals.log.warning('Exchange is closed.')
             if globals.configs['environment'] == 'prod':
                 raise Exception('Exchange is closed.')
 
