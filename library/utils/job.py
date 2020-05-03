@@ -1,5 +1,6 @@
 import datetime
 
+import library.bootstrap as globals
 from library.utils.log import log_hr
 
 
@@ -55,31 +56,33 @@ class Job:
             self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, datetime.datetime.now(), status])
         self.status = status
 
-    def log(self, log):
-        log.info('Starting job: {0}'.format(self.__str__()))
+    def log(self, logger=None):
+        if logger is None:
+            logger = globals.log
+        logger.info('Starting job: {0}'.format(self.__str__()))
+        log_hr(logger)
 
     def update_status(self, status):
         self._set_status(status.upper())
 
-    def finished(self, log=None, status=None):
+    def finished(self, logger=None, status=None):
+        if logger is None:
+            logger = globals.log
         # TODO Calculate average run time and log warn if it is longer.
-        log_hr(log)
+        log_hr(logger)
         self.update_status('COMPLETED')
-        if log:
-            end_time = datetime.datetime.now()
-            run_time = (end_time - self.start_time).total_seconds()
+        end_time = datetime.datetime.now()
+        run_time = (end_time - self.start_time).total_seconds()
 
-            if status:
-                status_map = {0: "SUCCESSFULLY",
-                              1: "with ERRORS",
-                              2: "with WARNINGS"}
+        if status:
+            status_map = {0: "SUCCESSFULLY",
+                          1: "with ERRORS",
+                          2: "with WARNINGS"}
 
-                if status in status_map:
-                    log.info('Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
-                else:
-                    log.info('Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
-                                                                                        status))
+            if status in status_map:
+                logger.info('Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
             else:
-                log.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))
-
-
+                logger.info('Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
+                                                                                    status))
+        else:
+            logger.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))

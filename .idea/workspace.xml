@@ -336,19 +336,13 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/deploy_staging.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/exchange_sandbox.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/database_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/database_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/exchange_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/exchange_interface.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/utils/job.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/job.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/utils/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/log.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -375,16 +369,17 @@
   <component name="PropertiesComponent">
     <property name="ASKED_ADD_EXTERNAL_FILES" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="com.intellij.ide.scratch.LRUPopupBuilder$1/New Scratch File" value="Python" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$/../drive/dev/configs" />
     <property name="restartRequiresConfirmation" value="false" />
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/library" />
       <recent name="$PROJECT_DIR$/library/utils" />
       <recent name="$PROJECT_DIR$/strategies" />
       <recent name="$PROJECT_DIR$/../drive/data" />
-      <recent name="$PROJECT_DIR$/library" />
     </key>
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/../drive/dev/configs" />
@@ -425,27 +420,6 @@
       <option name="INPUT_FILE" value="" />
       <method v="2" />
     </configuration>
-    <configuration name="exchange_test" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <module name="repo" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/exchange_sandbox.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
     <configuration name="onboarding_tool" type="PythonConfigurationType" factoryName="Python">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -460,6 +434,48 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/onboarding_tool.py" />
       <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -c $PROJECT_DIR$/../drive/setup/algo_trading_platform_config.json" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="scratch_1" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="drive" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$APPLICATION_CONFIG_DIR$/scratches" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$APPLICATION_CONFIG_DIR$/scratches/scratch_1.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="scratch_2" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="drive" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$APPLICATION_CONFIG_DIR$/scratches" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$APPLICATION_CONFIG_DIR$/scratches/scratch_2.py" />
+      <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -512,16 +528,18 @@
     <list>
       <item itemvalue="Python.onboarding_tool" />
       <item itemvalue="Python.data_loader" />
-      <item itemvalue="Python.exchange_test" />
       <item itemvalue="Python.strategy_batch" />
       <item itemvalue="Python.web_service_sandbox" />
+      <item itemvalue="Python.scratch_1" />
+      <item itemvalue="Python.scratch_2" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.strategy_batch" />
         <item itemvalue="Python.data_loader" />
+        <item itemvalue="Python.scratch_2" />
+        <item itemvalue="Python.scratch_1" />
         <item itemvalue="Python.web_service_sandbox" />
-        <item itemvalue="Python.exchange_test" />
       </list>
     </recent_temporary>
   </component>
@@ -565,13 +583,6 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/strategy_executor.py</url>
-          <line>361</line>
-          <option name="timeStamp" value="4" />
-        </line-breakpoint>
-      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">

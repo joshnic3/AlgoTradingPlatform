@@ -7,6 +7,7 @@ import time
 from itertools import chain
 from multiprocessing.pool import ThreadPool
 
+import library.bootstrap as globals
 from library.data_source_interface import TickerDataSource
 from library.database_interface import Database, generate_unique_id
 from library.utils.file import parse_configs_file
@@ -99,7 +100,7 @@ def worker_func(log, worker_id, group, data_loader):
     # Create a new worker process for each group.
     interval, count, source = group
     completed = 0
-    multiplier = 0 if configs['environment'] == 'dev' else 60
+    multiplier = 0 if globals.configs['environment'] == 'dev' else 60
     while completed < int(count):
         # TODO should not wait after last value is recorded.
         data_loader.get_ticker_values()
@@ -126,6 +127,7 @@ def parse_cmdline_args(app_name):
     parser.add_option('-r', '--root_path', dest="root_path")
     parser.add_option('-s', '--strategy', dest="strategy")
     parser.add_option('-j', '--job_name', dest="job_name", default=None)
+    parser.add_option('--debug', dest="debug", action="store_true", default=False)
     parser.add_option('--dry_run', action="store_true", default=False)
 
     options, args = parser.parse_args()
@@ -136,44 +138,45 @@ def parse_cmdline_args(app_name):
         "strategy": options.strategy,
         "job_name": options.job_name,
         "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
-        "dry_run": options.dry_run,
+        "debug": options.debug,
+        "dry_run": options.dry_run
     })
 
 
 def main():
     # Setup configs.
-    global configs
-    configs = parse_cmdline_args('algo_trading_platform')
+    # global configs
+    globals.configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(configs['logs_root_path'], configs['job_name'])
-    log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
-    log_configs(configs, log)
+    log_path = get_log_file_path(globals.configs['logs_root_path'], globals.configs['job_name'])
+    globals.log = setup_log(log_path, True if globals.configs['environment'] == 'dev' else False)
+    log_configs(globals, globals.log)
 
     # Setup db connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
-    db.log(log)
+    db = Database(globals.configs['db_root_path'], 'algo_trading_platform', globals.configs['environment'])
+    db.log()
 
     # Initiate Job.
-    job = Job(configs, db)
-    job.log(log)
+    job = Job(globals.configs, db)
+    job.log()
 
     # Prepare multiprocessing pool.
     cpu_count = multiprocessing.cpu_count()
     pool = ThreadPool(cpu_count)
 
     # Count required tickers.
-    strategy_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[0]
+    strategy_id = db.get_one_row('strategies', 'name="{0}"'.format(globals.configs['strategy']))[0]
     required_tickers = db.execute_sql('SELECT symbol FROM twap_required_tickers WHERE strategy_id="{0}";'.format(strategy_id))
-    log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
+    globals.log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
 
     # Get TWAPS.
     job.update_status('Generating required TWAPS')
     groups = [r for r in db.execute_sql('SELECT DISTINCT interval, count, source FROM twap_required_tickers where strategy_id="{0}";'.format(strategy_id))]
-    log.info('Grouped into {0} data loader(s)'.format(len(groups)))
-    log_hr(log)
+    globals.log.info('Grouped into {0} data loader(s)'.format(len(groups)))
+    log_hr()
     workers = [pool.apply_async(worker_func,
-                                args=(log, groups.index(g), g, TWAPDataLoader(g[2], required_tickers, db), )
+                                args=(globals.log, groups.index(g), g, TWAPDataLoader(g[2], required_tickers, db), )
                                 ) for g in groups]
     pool.close()
     pool.join()
@@ -185,22 +188,21 @@ def main():
     data_warnings = [i for i in chain.from_iterable([dl.data_warnings for dl in data_loaders])]
 
     # Log results.
-    log_hr(log)
-    log.info('Retrieved {0} TWAPS'.format(len(retrieved_twaps)))
+    globals.log.info('Retrieved {0} TWAPS'.format(len(retrieved_twaps)))
     if data_warnings:
         unique_data_warnings = list(set(data_warnings))
-        log.info('{0} Data Warnings:'.format(len(data_warnings)))
+        globals.log.info('{0} Data Warnings:'.format(len(data_warnings)))
         for udw in unique_data_warnings:
-            log.info('[Symbol: {0}, Warning: {1}, Occurrences: {2}]'.format(udw[0], udw[1], data_warnings.count(udw)))
+            globals.log.info('[Symbol: {0}, Warning: {1}, Occurrences: {2}]'.format(udw[0], udw[1], data_warnings.count(udw)))
 
     # Save results to database.
-    if not configs['dry_run']:
-        log.info('Saving {0} TWAPS to database:'.format(len(retrieved_twaps)))
+    if not globals.configs['dry_run']:
+        globals.log.info('Saving {0} TWAPS to database:'.format(len(retrieved_twaps)))
         for data_loader in data_loaders:
-            data_loader.save_twaps_to_db(log)
+            data_loader.save_twaps_to_db(globals.log)
 
     else:
-        log.info('This is a dry run so TWAPS where not saved')
+        globals.log.info('This is a dry run so TWAPS where not saved')
 
     success = len(required_tickers) == len(retrieved_twaps)
     if success:
@@ -208,7 +210,7 @@ def main():
     else:
         status = 1
 
-    job.finished(log, status)
+    job.finished(status=status)
     return status
 
 

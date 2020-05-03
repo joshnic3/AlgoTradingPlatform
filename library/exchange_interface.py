@@ -1,6 +1,8 @@
 import json
 import requests
 
+import library.bootstrap as globals
+
 
 class AlpacaInterface:
 
@@ -17,9 +19,9 @@ class AlpacaInterface:
         }
 
         if not self.is_exchange_open():
-            # TODO Log this (argument for global logger).
-            # raise Exception('Exchange is closed.')
-            pass
+            globals.log.warn('Exchange is closed.')
+            if globals.configs['environment'] == 'prod':
+                raise Exception('Exchange is closed.')
 
     def _request_get(self, url, params=None, data=None):
         # Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.

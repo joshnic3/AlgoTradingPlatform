@@ -4,6 +4,7 @@ import os
 import sys
 import time
 
+import library.bootstrap as globals
 import strategy.strategy_functions as strategy_functions
 from library.data_source_interface import TickerDataSource
 from library.database_interface import Database, generate_unique_id
@@ -367,6 +368,7 @@ def parse_cmdline_args(app_name):
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
     parser.add_option('-j', '--job_name', dest="job_name", default=None)
+    parser.add_option('--debug', dest="debug", action="store_true", default=False)
     parser.add_option('--dry_run', action="store_true", default=False)
 
     # Initiate script specific args.
@@ -387,6 +389,7 @@ def parse_cmdline_args(app_name):
         "job_name": options.job_name,
         "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
         "dry_run": options.dry_run,
+        "debug": options.debug,
 
         # Parse script specific args.
         "data_source": options.data_source,
@@ -399,33 +402,32 @@ def parse_cmdline_args(app_name):
 
 def main():
     # Setup configs.
-    global configs
-    configs = parse_cmdline_args('algo_trading_platform')
+    globals.configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(configs['logs_root_path'], configs['job_name'])
-    log = setup_log(log_path, True if configs['environment'] == 'dev' else False)
-    log_configs(configs, log)
+    log_path = get_log_file_path(globals.configs['logs_root_path'], globals.configs['job_name'])
+    globals.log = setup_log(log_path, True if globals.configs['environment'] == 'dev' else False)
+    log_configs(globals.configs)
 
     # Setup database.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
-    db.log(log)
+    db = Database(globals.configs['db_root_path'], 'algo_trading_platform', globals.configs['environment'])
+    db.log()
 
     # Initiate Job
-    job = Job(configs, db)
-    job.log(log)
+    job = Job(globals.configs, db)
+    job.log()
 
     # Setup data source if one is specified in the args.
-    ds_name = configs['data_source']
+    ds_name = globals.configs['data_source']
     ds = TickerDataSource(db, ds_name) if ds_name else None
-    log.info('Initiated data source: {0}'.format(ds_name))
+    globals.log.info('Initiated data source: {0}'.format(ds_name))
 
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
     job.update_status('Evaluating strategies')
-    signal_generator = SignalGenerator(db, log, configs['run_date'], configs['run_time'], ds)
+    signal_generator = SignalGenerator(db, globals.log, globals.configs['run_date'], globals.configs['run_time'], ds)
     # Only takes on strategy.
-    signals = signal_generator.generate_signals(configs['strategy'])
+    signals = signal_generator.generate_signals(globals.configs['strategy'])
 
     job.update_status('Processing signals')
     # Check for conflicting signals [Signals].
@@ -435,29 +437,29 @@ def main():
         # Script cannot go any further from this point, but should not error.
         raise Exception('No valid signals.')
 
-    log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
+    globals.log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
     for signal in cleaned_signals:
-        log.info(str(signal))
+        globals.log.info(str(signal))
 
     # Calculate risk profile {'strategy name': {'check name': check_threshold}}.
-    risk_profile = generate_risk_profile(db, configs['strategy'])
+    risk_profile = generate_risk_profile(db, globals.configs['strategy'])
 
     # Initiate exchange.
-    if configs['mode'] == 'simulate':
-        exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'], simulator=True)
-    elif configs['mode'] == 'execute':
-        exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'])
+    if globals.configs['mode'] == 'simulate':
+        exchange = AlpacaInterface(globals.configs['API_ID'], globals.configs['API_SECRET_KEY'], simulator=True)
+    elif globals.configs['mode'] == 'execute':
+        exchange = AlpacaInterface(globals.configs['API_ID'], globals.configs['API_SECRET_KEY'])
     else:
         # Script cannot go any further from this point.
-        raise Exception('Mode "{0}" is not valid.'.format(configs['mode']))
+        raise Exception('Mode "{0}" is not valid.'.format(globals.configs['mode']))
 
     # Initiate trade executor.
     job.update_status('Proposing trades')
-    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(configs['strategy']))[3]
+    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(globals.configs['strategy']))[3]
     trade_executor = TradeExecutor(db, portfolio_id, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(configs['strategy'], cleaned_signals, risk_profile)
+    proposed_trades = trade_executor.propose_trades(globals.configs['strategy'], cleaned_signals, risk_profile)
 
     # Execute trades.
     job.update_status('Executing trades')
@@ -465,15 +467,15 @@ def main():
 
     # Process trades.
     job.update_status('Processing trades')
-    processed_trades = trade_executor.process_executed_trades(executed_order_ids, log)
+    processed_trades = trade_executor.process_executed_trades(executed_order_ids, globals.log)
 
-    log.info('Updated portfolio in database.')
+    globals.log.info('Updated portfolio in database.')
     trade_executor.update_portfolio_db(job.id, ds)
 
     # Log summary.
-    log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
+    globals.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
 
-    job.finished(log)
+    job.finished()
 
 
 if __name__ == "__main__":

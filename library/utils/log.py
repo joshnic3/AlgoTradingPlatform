@@ -1,6 +1,7 @@
 import datetime
 import os
 import logging
+import library.bootstrap as globals
 
 
 def get_log_file_path(root_path, job_name):
@@ -14,28 +15,34 @@ def get_log_file_path(root_path, job_name):
 def setup_log(log_path, show_in_console=False):
     # Setup logging to file.
     logging.root.handlers = []
-    log_format = '%(asctime)s: %(message)s'
-    logging.basicConfig(level='INFO', format=log_format, filename=log_path)
+    log_format = '%(asctime)s|%(levelname)s : %(message)s'
+    if globals.configs['debug']:
+        logging.basicConfig(level='DEBUG', format=log_format, filename=log_path)
+    else:
+        logging.basicConfig(level='INFO', format=log_format, filename=log_path)
     log = logging.getLogger('')
 
     # Setup logging to console.
     if show_in_console:
         console = logging.StreamHandler()
-        console.setLevel(logging.INFO)
         formatter = logging.Formatter(log_format)
         console.setFormatter(formatter)
         logging.getLogger('').addHandler(console)
     return log
 
 
-def log_configs(configs, log):
-    config_strs = ['Config "{0}": {1}'.format(str(k), str(configs[k])) for k in configs.keys() if configs[k]]
+def log_configs(configs, logger=None):
+    if logger is None:
+        logger = globals.log
+    config_strs = ['Config "{0}": {1}'.format(str(k), str(globals.configs[k])) for k in globals.configs.keys() if globals.configs[k]]
     for config_str in config_strs:
-        log.info(config_str)
-    log_hr(log)
+        logger.info(config_str)
+    log_hr(logger)
 
 
-def log_hr(log):
-    log.info('-------------------------------------------------------------------------------------------------------')
+def log_hr(logger=None):
+    if logger is None:
+        logger = globals.log
+    logger.info('-------------------------------------------------------------------------------------------------------')
 
 

@@ -2,6 +2,10 @@ import os
 import datetime
 import sqlite3
 
+import library.bootstrap as globals
+from library.utils.log import log_hr
+import library.bootstrap as script_globals
+
 
 def generate_unique_id(seed):
     return str(abs(hash(str(seed) + datetime.datetime.now().strftime('%Y%m%d%H%M%S'))))
@@ -52,6 +56,7 @@ class Database:
         return '[name: {0}, environment: {1}]'.format(self._name, self._environment)
 
     def execute_sql(self, sql):
+        script_globals.log.debug(sql)
         self._cursor.execute(sql)
         results = [list(i) for i in self._cursor.fetchall()]
         self._connection.commit()
@@ -98,5 +103,8 @@ class Database:
         self.tables.append(table)
         self.execute_sql(sql)
 
-    def log(self, log):
-        log.info('Connected to database: {0}'.format(self.__str__()))
+    def log(self, logger=None):
+        if logger is None:
+            logger = globals.log
+        logger.info('Connected to database: {0}'.format(self.__str__()))
+        log_hr(logger)
