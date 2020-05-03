@@ -56,7 +56,8 @@ class Database:
         return '[name: {0}, environment: {1}]'.format(self._name, self._environment)
 
     def execute_sql(self, sql):
-        script_globals.log.debug(sql)
+        if script_globals.log:
+            script_globals.log.debug(sql)
         self._cursor.execute(sql)
         results = [list(i) for i in self._cursor.fetchall()]
         self._connection.commit()

@@ -337,12 +337,7 @@
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/database_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/database_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/exchange_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/exchange_interface.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/job.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/job.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/log.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -536,10 +531,10 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.strategy_batch" />
+        <item itemvalue="Python.web_service_sandbox" />
         <item itemvalue="Python.data_loader" />
         <item itemvalue="Python.scratch_2" />
         <item itemvalue="Python.scratch_1" />
-        <item itemvalue="Python.web_service_sandbox" />
       </list>
     </recent_temporary>
   </component>
@@ -583,6 +578,13 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/library/database_interface.py</url>
+          <line>59</line>
+          <option name="timeStamp" value="13" />
+        </line-breakpoint>
+      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">
