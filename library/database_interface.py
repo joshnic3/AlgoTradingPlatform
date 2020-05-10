@@ -66,6 +66,7 @@ class Database:
     def insert_row(self, table, values):
         values = [str(v) for v in values]
         if table.lower() not in self.tables:
+            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
         self.execute_sql(sql)
@@ -76,6 +77,7 @@ class Database:
         if columns is None:
             columns = '*'
         if table not in self.tables:
+            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'SELECT {0} FROM {1}{2}'.format(columns,
                                               table,
@@ -84,6 +86,7 @@ class Database:
 
     def update_value(self, table, column, value, condition):
         if table.lower() not in self.tables:
+            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'UPDATE {0} SET {1}="{2}"{3}'.format(table,
                                                      column,
@@ -92,6 +95,9 @@ class Database:
         self.execute_sql(sql)
 
     def get_one_row(self, table, condition, columns=None):
+        if table.lower() not in self.tables:
+            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
+            return None
         results = self.query_table(table, condition, columns)
         if len(results) > 1:
             raise Exception('Database query expected only one row, got {0}.'.format(len(results)))

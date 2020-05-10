@@ -41,7 +41,7 @@ def twaps():
     # Query TWAP table.
     if 'symbol' in params:
         if 'before' in params and 'after' in params:
-            condition = 'symbol="{0}" AND start_time>"{1}" AND end_time<"{2}"'.format(params['symbol'], params['after'],
+            condition = 'symbol="{0}" AND start_time>"{1}" AND end_time<"{2}"'.format(params['symbol'].upper(), params['after'],
                                                                                       params['before'])
         else:
             condition = 'symbol="{0}"'.format(params['symbol'])

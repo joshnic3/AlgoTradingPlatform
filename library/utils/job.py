@@ -29,7 +29,7 @@ class Job:
     # Maybe add a job phase table.
 
     def __init__(self, configs, db):
-        self.name = configs['job_name']
+        self.name = configs['job_name'] if configs['job_name'] else 'manual_run'
         self.script = configs['script_name']
         self.start_time = datetime.datetime.now()
         self.status = None
@@ -68,12 +68,9 @@ class Job:
     def finished(self, logger=None, status=None):
         if logger is None:
             logger = globals.log
-        # TODO Calculate average run time and log warn if it is longer.
         log_hr(logger)
         self.update_status('COMPLETED')
-        end_time = datetime.datetime.now()
-        run_time = (end_time - self.start_time).total_seconds()
-
+        run_time = (datetime.datetime.now() - self.start_time).total_seconds()
         if status:
             status_map = {0: "SUCCESSFULLY",
                           1: "with ERRORS",
@@ -83,6 +80,6 @@ class Job:
                 logger.info('Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
             else:
                 logger.info('Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
-                                                                                    status))
+                                                                                       status))
         else:
             logger.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))

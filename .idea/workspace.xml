@@ -339,10 +339,17 @@
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/database_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/database_interface.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/library/exchange_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/exchange_interface.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/utils/file.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/file.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/utils/job.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/job.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/utils/onboarding.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utils/onboarding.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy/strategy_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
@@ -360,7 +367,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
     <option name="UPDATE_TYPE" value="MERGE" />
   </component>
@@ -377,15 +384,17 @@
     <property name="settings.editor.selected.configurable" value="editor.preferences.fonts.default" />
   </component>
   <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
+      <recent name="$PROJECT_DIR$/../drive/dev/strategies" />
+      <recent name="$PROJECT_DIR$/../drive/setup" />
+    </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/../drive/setup/strategies" />
+      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
       <recent name="$PROJECT_DIR$/library" />
       <recent name="$PROJECT_DIR$/library/utils" />
       <recent name="$PROJECT_DIR$/strategies" />
-      <recent name="$PROJECT_DIR$/../drive/data" />
-    </key>
-    <key name="CopyFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/../drive/dev/configs" />
-      <recent name="$PROJECT_DIR$/../drive/setup" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -401,7 +410,7 @@
     </option>
   </component>
   <component name="RunManager" selected="Python.strategy_batch">
-    <configuration name="data_loader" type="PythonConfigurationType" factoryName="Python" temporary="true">
+    <configuration name="data_loader_2" type="PythonConfigurationType" factoryName="Python" temporary="true">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
@@ -414,7 +423,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/data_loader.py" />
-      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -j pairs_data_loader -s basic_limit" />
+      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -x $PROJECT_DIR$/../drive/dev/strategies/pairs.xml" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -436,27 +445,6 @@
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/onboarding_tool.py" />
       <option name="PARAMETERS" value="-r $PROJECT_DIR$/../drive -e dev -c $PROJECT_DIR$/../drive/setup/algo_trading_platform_config.json" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
-    <configuration name="scratch_1" type="PythonConfigurationType" factoryName="Python" temporary="true">
-      <module name="drive" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$APPLICATION_CONFIG_DIR$/scratches" />
-      <option name="IS_MODULE_SDK" value="false" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$APPLICATION_CONFIG_DIR$/scratches/scratch_1.py" />
-      <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -498,7 +486,7 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/strategy_executor.py" />
-      <option name="PARAMETERS" value="-e dev -j pairs_frequent_strategy_batch -r $PROJECT_DIR$/../drive -d FML -s basic_limit -m simulate" />
+      <option name="PARAMETERS" value="-e dev -r $PROJECT_DIR$/../drive -x $PROJECT_DIR$/../drive/dev/strategies/pairs.xml -m simulate" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
       <option name="MODULE_MODE" value="false" />
@@ -528,20 +516,18 @@
       <method v="2" />
     </configuration>
     <list>
-      <item itemvalue="Python.data_loader" />
       <item itemvalue="Python.onboarding_tool" />
-      <item itemvalue="Python.scratch_1" />
       <item itemvalue="Python.scratch_2" />
       <item itemvalue="Python.strategy_batch" />
       <item itemvalue="Python.web_service_sandbox" />
+      <item itemvalue="Python.data_loader_2" />
     </list>
     <recent_temporary>
       <list>
         <item itemvalue="Python.strategy_batch" />
-        <item itemvalue="Python.data_loader" />
+        <item itemvalue="Python.data_loader_2" />
         <item itemvalue="Python.web_service_sandbox" />
         <item itemvalue="Python.scratch_2" />
-        <item itemvalue="Python.scratch_1" />
       </list>
     </recent_temporary>
   </component>
@@ -585,6 +571,18 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
+          <line>68</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/onboarding_tool.py</url>
+          <line>35</line>
+          <option name="timeStamp" value="15" />
+        </line-breakpoint>
+      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">
@@ -597,6 +595,7 @@
       <configuration name="PythonConfigurationType">
         <watch expression="configs" />
         <watch expression="risk_profile" />
+        <watch expression="twap_generator_groups[0][0]" />
       </configuration>
     </watches-manager>
   </component>

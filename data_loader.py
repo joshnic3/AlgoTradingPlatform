@@ -4,65 +4,64 @@ import optparse
 import os
 import sys
 import time
-from itertools import chain
+import xml.etree.ElementTree as et
 from multiprocessing.pool import ThreadPool
+import threading
 
 import library.bootstrap as globals
 from library.data_source_interface import TickerDataSource
 from library.database_interface import Database, generate_unique_id
-from library.utils.file import parse_configs_file
+from library.utils.file import parse_configs_file, get_xml_element_attributes, get_xml_element_attribute
 from library.utils.job import Job
-from library.utils.log import get_log_file_path, setup_log, log_configs, log_hr
+from library.utils.log import get_log_file_path, setup_log, log_configs
+
+NS = {
+    'XML_TWAP_LABEL': 'data/twap',
+    'XML_TWAP_ATTRIBUTES': {
+        'NAME': 'name',
+        'TOLERANCE': 'tolerance',
+        'COUNT': 'count',
+        'INTERVAL': 'interval'
+    },
+    'XML_TICKER_LABEL': 'ticker',
+    'XML_TICKER_ATTRIBUTES': {
+        'SYMBOL': 'symbol'
+    }
+}
 
 
-class TWAPDataLoader:
+class DataWarning:
 
-    def __init__(self, source, tickers, db):
-        self.source = TickerDataSource(db, source)
-        self.twaps = [TWAP(t[0]) for t in tickers]
-        self.data_warnings = []
-        self._db = db
+    def __init__(self, symbol, data_group, warning_type):
+        _types = ['STALE_TICKER']
+        self.symbol = symbol
+        self.data_group = data_group
+        warning_type = warning_type.upper()
+        if warning_type in _types:
+            self.type = warning_type
+        else:
+            raise Exception('Invalid data warning type "{0}". Valid types: {1}'.format(warning_type, _types))
 
     def __str__(self):
-        return self.source
+        return '{0}: "{1}"'.format(self.type, self.symbol)
 
-    def get_ticker_values(self):
-        now = datetime.datetime.now()
-        symbols = [t.symbol for t in self.twaps]
-        results = self.source.request_tickers(symbols)
-        for twap in self.twaps:
-            data_warnings = twap.add_tick(now, results[twap.symbol])
-            if data_warnings:
-                self.data_warnings.append(data_warnings)
-
-    def calculate_twaps(self):
-        for twap in self.twaps:
-            twap.calculate_twap()
-
-    def save_twaps_to_db(self, log=None):
-        for twap in self.twaps:
-            twap.save_to_db(self._db)
-            if log:
-                log.info(twap.__str__())
+    def save_to_db(self, db):
+        warning_id = generate_unique_id(self.symbol)
+        values = [warning_id, self.data_group, self.type, self.symbol]
+        db.insert_row('data_warnings', values)
 
 
 class TWAP:
 
-    def __init__(self, symbol):
+    def __init__(self, symbol, data_group):
         self.symbol = symbol
         self.ticks = []
-        self.twap = None
+        self.data_warnings = []
+        self._data_group = data_group
+        self.value = None
 
     def __str__(self):
-        formatted_ticks = [(t[0], t[1]) for t in self.ticks]
-        values = [t[1] for t in self.ticks]
-        times = [t[0] for t in self.ticks]
-        spread = max(values) - min(values)
-        return '[Symbol: {0}, TWAP: {1}, Start Time: {2}, Ticks: {3}, Spread: {4}]'.format(self.symbol,
-                                                                                           self.twap,
-                                                                                           min(times).strftime(
-                                                                                              '%H:%M.%S'),
-                                                                                           len(formatted_ticks), spread)
+        return '[Symbol: {0}, Value: {1}]'.format(self.symbol, self.value)
 
     def _is_stale(self, value):
         if not self.ticks:
@@ -73,59 +72,131 @@ class TWAP:
 
     def add_tick(self, date_time, value):
         self.ticks.append((date_time, float(value)))
-        if self._is_stale(float(value)):
-            return self.symbol, 'STALE_TICKER'
-        return None
+        if self._is_stale(float(value)) and len(self.ticks) > 1:
+            self.data_warnings.append(DataWarning(self.symbol, self._data_group, 'STALE_TICKER'))
+        else:
+            return None
 
     def calculate_twap(self):
-        self.twap = 0
+        self.value = 0
         if self.ticks:
-            self.twap = sum([float(t[1]) for t in self.ticks])/len(self.ticks)
-        return self.twap
+            self.value = sum([float(t[1]) for t in self.ticks]) / len(self.ticks)
+        return self.value
 
     def save_to_db(self, db):
         twap_id = generate_unique_id(self.symbol)
         times = [t[0] for t in self.ticks]
         start_time = min(times)
-        # This is the time of the last tick, so will be interval * count minutes early.
         end_time = max(times)
-        values = [twap_id, start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), self.symbol, self.twap]
+        data_warning_flag = len(self.data_warnings) > 0
+        values = [twap_id, start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), self.symbol,
+                  self.value, data_warning_flag]
         db.insert_row('twaps', values)
+        [d.save_to_db(db) for d in self.data_warnings]
 
     def log_twap(self, log):
         log.info(self.__str__())
 
 
-def worker_func(log, worker_id, group, data_loader):
-    # Create a new worker process for each group.
-    interval, count, source = group
-    completed = 0
-    multiplier = 0 if globals.configs['environment'] == 'dev' else 60
-    while completed < int(count):
-        # TODO should not wait after last value is recorded.
-        data_loader.get_ticker_values()
-        completed += 1
-        time.sleep(int(interval) * multiplier)
-    data_loader.calculate_twaps()
-    log.info('Loader {0} completed {1} [Source: {2}, Tickers: {3}, DataWarnings: {4}]'
-             .format(worker_id,
-                     'with WARNINGS.' if data_loader.data_warnings else 'SUCCESSFULLY!',
-                     data_loader.source,
-                     len(data_loader.twaps),
-                     len(data_loader.data_warnings)))
-    return data_loader
+class TWAPGenerator:
+
+    def __init__(self, tickers, data_group, tolerance=None):
+        self.twaps = [TWAP(s, data_group) for s in tickers]
+        self.tolerance = tolerance
+
+    def __str__(self):
+        return self.source
+
+    def get_ticker_values(self, data_source):
+        now = datetime.datetime.now()
+        symbols = [t.symbol for t in self.twaps]
+        results = data_source.request_tickers(symbols)
+        for twap in self.twaps:
+            twap.add_tick(now, results[twap.symbol])
+
+    def calculate(self):
+        for twap in self.twaps:
+            twap.calculate_twap()
+            if self.tolerance:
+                twap.value = round(twap.value, self.tolerance)
+
+    def save_to_db(self, db):
+        for twap in self.twaps:
+            twap.save_to_db(db)
 
 
-def required_tickers_for_group(db, group):
-    condition = 'interval="{0}" AND count="{1}" AND source="{2}"'.format(*group)
-    return db.query_table('twap_required_tickers', condition)
+class DataLoader:
+
+    def __init__(self, data_source):
+        self._data_source = data_source
+
+    @staticmethod
+    def _tick_recorder(data_source, twap_generator, count, interval):
+        completed = 0
+        multiplier = 0 if globals.configs['environment'] == 'dev' else 60
+        while completed < int(count):
+            twap_generator.get_ticker_values(data_source)
+            completed += 1
+            time.sleep(int(interval) * multiplier)
+        thread_id = threading.get_ident()
+        symbols = ', '.join([t.symbol for t in twap_generator.twaps])
+        globals.log.info('Tick recorder finished. pid: {0}, symbols: {1} '.format(thread_id, symbols))
+        return twap_generator
+
+    @staticmethod
+    def parse_required_data(xml_path):
+        # Get XML root.
+        root = et.parse(xml_path).getroot()
+
+        # Generate twap data loader groups.
+        twap_generator_groups = []
+        for twap in root.findall(NS['XML_TWAP_LABEL']):
+            # Extract attributes.
+            group_attributes = list(NS['XML_TWAP_ATTRIBUTES'].keys())
+            attributes = get_xml_element_attributes(twap, require=group_attributes)
+
+            # Extract list of symbols.
+            ticker_symbols = [get_xml_element_attribute(t, NS['XML_TICKER_ATTRIBUTES']['SYMBOL'])
+                              for t in twap.findall(NS['XML_TICKER_LABEL'])]
+            tolerance = int(attributes[NS['XML_TWAP_ATTRIBUTES']['TOLERANCE']])
+            twap_generator_groups.append((
+                TWAPGenerator(ticker_symbols, attributes[NS['XML_TWAP_ATTRIBUTES']['NAME']], tolerance=tolerance),
+                int(attributes[NS['XML_TWAP_ATTRIBUTES']['COUNT']]),
+                int(attributes[NS['XML_TWAP_ATTRIBUTES']['INTERVAL']]))
+            )
+        return twap_generator_groups
+
+    def record_ticks(self, twap_generator_groups):
+        # Prepare multiprocessing pool.
+        cpu_count = multiprocessing.cpu_count()
+        pool = ThreadPool(cpu_count)
+
+        # Do work asynchronously.
+        workers = [pool.apply_async(self._tick_recorder, args=(self._data_source, *g,)) for g in twap_generator_groups]
+        pool.close()
+        pool.join()
+
+        # Return data loader objects.
+        twap_generator_objects = [w.get() for w in workers]
+        return twap_generator_objects
+
+    @staticmethod
+    def process(twap_generator_objects, db=None):
+        twaps = []
+        # Record twaps to database.
+        for twap_generator in twap_generator_objects:
+            twap_generator.calculate()
+            if db:
+                twap_generator.save_to_db(db)
+            twaps += twap_generator.twaps
+        return twaps
 
 
 def parse_cmdline_args(app_name):
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
-    parser.add_option('-s', '--strategy', dest="strategy")
+    parser.add_option('-x', '--xml_file', dest="xml_file")
     parser.add_option('-j', '--job_name', dest="job_name", default=None)
     parser.add_option('--debug', dest="debug", action="store_true", default=False)
     parser.add_option('--dry_run', action="store_true", default=False)
@@ -135,7 +206,7 @@ def parse_cmdline_args(app_name):
         "app_name": app_name,
         "environment": options.environment.lower(),
         "root_path": options.root_path,
-        "strategy": options.strategy,
+        "xml_file": options.xml_file,
         "job_name": options.job_name,
         "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
         "debug": options.debug,
@@ -145,7 +216,6 @@ def parse_cmdline_args(app_name):
 
 def main():
     # Setup configs.
-    # global configs
     globals.configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
@@ -161,57 +231,37 @@ def main():
     job = Job(globals.configs, db)
     job.log()
 
-    # Prepare multiprocessing pool.
-    cpu_count = multiprocessing.cpu_count()
-    pool = ThreadPool(cpu_count)
+    # Initialise data loader.
+    data_loader = DataLoader(TickerDataSource(db, 'FML'))
 
-    # Count required tickers.
-    strategy_id = db.get_one_row('strategies', 'name="{0}"'.format(globals.configs['strategy']))[0]
-    required_tickers = db.execute_sql('SELECT symbol FROM twap_required_tickers WHERE strategy_id="{0}";'.format(strategy_id))
-    globals.log.info('Found {0} required ticker(s)'.format(len(required_tickers)))
+    # Parse data requirements from XML file supplied in parameters.
+    job.update_status('PROCESSING_DATA_REQUIREMENTS')
+    globals.log.info('Reading in data requirements.')
+    twap_generator_groups = data_loader.parse_required_data(globals.configs['xml_file'])
 
-    # Get TWAPS.
-    job.update_status('Generating required TWAPS')
-    groups = [r for r in db.execute_sql('SELECT DISTINCT interval, count, source FROM twap_required_tickers where strategy_id="{0}";'.format(strategy_id))]
-    globals.log.info('Grouped into {0} data loader(s)'.format(len(groups)))
-    log_hr()
-    workers = [pool.apply_async(worker_func,
-                                args=(globals.log, groups.index(g), g, TWAPDataLoader(g[2], required_tickers, db), )
-                                ) for g in groups]
-    pool.close()
-    pool.join()
+    # Record ticks.
+    job.update_status('RECORDING_TICKS')
+    globals.log.info('Starting {0} tick recorder(s).'.format(len(twap_generator_groups)))
+    twap_generator_objects = data_loader.record_ticks(twap_generator_groups)
 
-    # Read results.
-    job.update_status('Processing TWAPS')
-    data_loaders = [w.get() for w in workers]
-    retrieved_twaps = [i for i in chain.from_iterable([dl.twaps for dl in data_loaders])]
-    data_warnings = [i for i in chain.from_iterable([dl.data_warnings for dl in data_loaders])]
+    # Process results.
+    job.update_status('CALCULATING_TWAPS')
+    globals.log.info('Processing and saving TWAPs.')
+    twaps = data_loader.process(twap_generator_objects, db)
 
-    # Log results.
-    globals.log.info('Retrieved {0} TWAPS'.format(len(retrieved_twaps)))
+    # Pretty print to log.
+    data_warnings = 0
+    for twap in twaps:
+        globals.log.info('{0}'.format(str(twap)))
+        if twap.data_warnings:
+            data_warnings += len(twap.data_warnings)
+
     if data_warnings:
-        unique_data_warnings = list(set(data_warnings))
-        globals.log.info('{0} Data Warnings:'.format(len(data_warnings)))
-        for udw in unique_data_warnings:
-            globals.log.info('[Symbol: {0}, Warning: {1}, Occurrences: {2}]'.format(udw[0], udw[1], data_warnings.count(udw)))
+        globals.log.info('Total data warning(s): {0}'.format(data_warnings))
 
-    # Save results to database.
-    if not globals.configs['dry_run']:
-        globals.log.info('Saving {0} TWAPS to database:'.format(len(retrieved_twaps)))
-        for data_loader in data_loaders:
-            data_loader.save_twaps_to_db(globals.log)
-
-    else:
-        globals.log.info('This is a dry run so TWAPS where not saved')
-
-    success = len(required_tickers) == len(retrieved_twaps)
-    if success:
-        status = 2 if data_warnings else 0
-    else:
-        status = 1
-
+    # Finish job.
+    status = 2 if data_warnings else 0
     job.finished(status=status)
-    return status
 
 
 if __name__ == "__main__":

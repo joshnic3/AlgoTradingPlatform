@@ -5,59 +5,43 @@ import sys
 from crontab import CronTab
 
 from library.utils.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, copy_file
-from library.utils.onboarding import add_twap_required_tickers, add_data_source, \
-    add_strategy, add_risk_profile, add_portfolio, add_assets
+from library.utils.onboarding import add_data_source, add_strategy, add_portfolio, add_assets
 from library.database_interface import initiate_database
 
 
 class StrategyOnboarder:
 
-    def __init__(self, configs, name, risk_profile, portfolio_id, method, args, data_loader_schedule, strategy_schedule, required_tickers, environment):
+    def __init__(self, configs, name, portfolio_id, data_loader_schedule, strategy_schedule, required_tickers, environment):
         self.configs = configs
         self.name = name
         self.environment = environment
-        self.risk_profile = risk_profile
-        self.method = method
-        self.args = args
         self.data_loader_schedule = data_loader_schedule
         self.strategy_schedule = strategy_schedule
         self.required_tickers = required_tickers
         self.portfolio_id = portfolio_id
 
     def deploy(self, db):
+        xml_file = '/Users/joshnicholls/PycharmProjects/algo_trading_platform/drive/demo.xml'
         # Add strategy.
-        self.setup_strategy(db, self.name, self.risk_profile, self.portfolio_id, self.method, self.args, self.required_tickers)
+        add_strategy(db, self.name, self.portfolio_id)
 
         # Environment specific setup.
-        if self.environment != 'dev':
-            self.create_data_loader_job(self.name, self.data_loader_schedule)
-            self.create_strategy_executor_job([self.name], self.strategy_schedule)
-            self._generate_deployment_script()
+        # if self.environment != 'dev':
+        # self.create_data_loader_job(self.name, self.data_loader_schedule, xml_file)
+        # self.create_strategy_executor_job([self.name], self.strategy_schedule)
+        # self._generate_deployment_script()
 
-    @staticmethod
-    def setup_strategy(db, strategy_name, risk_profile, portfolio_id, method, args, required_tickers):
-        # Add strategy and its required twaps.
-        strategy_id = add_strategy(db, strategy_name, risk_profile, portfolio_id, args, method)
-        [r.append(strategy_id) for r in required_tickers]
-
-        # Setup test for data_loader
-        add_twap_required_tickers(db, required_tickers)
-
-
-
-        # Returns strategy name.
-        return strategy_name
-
-    def _generate_script_args(self, script_name, strategy_name):
+    def _generate_script_args(self, group_name, xml_file):
         script_templates = self.configs['script_details']
-        script_args_template = script_templates[script_name]['args']
+        script_args_template = script_templates[group_name]['args']
         script_args = parse_wildcards(script_args_template, {'%e%': self.environment,
-                                                             '%j%': '{0}_{1}'.format(strategy_name, script_name),
+                                                             '%j%': '{0}_scheduled'.format(group_name),
                                                              '%r%': self.configs['root_path'],
-                                                             '%s%': strategy_name})
+                                                             '%g%': group_name,
+                                                             '%x%': xml_file})
         return script_args
 
-    def create_data_loader_job(self, strategy_name, schedule):
+    def create_data_loader_job(self, group_name, schedule, xml_file):
         # TODO Use venv interpreter.
         # should beable to set up paths in venv for use in stdizin args
         interpreter = 'python3'
@@ -66,7 +50,7 @@ class StrategyOnboarder:
         # Each strategy has one data_loader, each run = 1 twap for each required ticker for that strategy.
         script_name = 'data_loader'
         script_path = os.path.join(code_path, '{0}.py'.format(script_name))
-        data_loader_args = self._generate_script_args(script_name, strategy_name)
+        data_loader_args = self._generate_script_args(group_name, xml_file)
         cron_job_template = [interpreter, script_path, data_loader_args]
         self._reset_cron_jobs()
         self._create_cron_job(cron_job_template, schedule)
@@ -137,7 +121,7 @@ def main():
     configs = parse_cmdline_args()
 
     # Generate resource directories.
-    resource_directories = ['logs', 'data', 'configs']
+    resource_directories = ['logs', 'data', 'configs', 'strategies']
     environment_path = get_environment_specific_path(configs['root_path'], configs['environment'])
     add_dir(environment_path, backup=True)
     for directory in resource_directories:
@@ -167,20 +151,14 @@ def main():
     # Setup data source.
     add_data_source(db, 'FML', os.path.join(app_configs['configs_root_path'], 'fml_data_source_config.json'))
 
-    # Add risk profile.
-    risk_profile_id = add_risk_profile(db, [1000.0, 1000000.0])
-
     # Setup basic limit strategy.
     # Add portfolio.
-    strategy_name = 'basic_limit'
+    strategy_name = 'DEMO_STRATEGY'
     portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_name), 'alpaca', '0.00', 0.25)
     add_assets(db, portfolio_id, 'JPM', 0)
     onboarder = StrategyOnboarder(app_configs,
                                   strategy_name,
-                                  risk_profile_id,
                                   portfolio_id,
-                                  'basic',
-                                  'JPM',
                                   "30 14-21 * * 1-5",
                                   "30 20 * * 1-5",
                                   [['JPM', '15', '4', 'FML']],
@@ -188,16 +166,13 @@ def main():
     onboarder.deploy(db)
 
     # Setup frequent pairs strategy.
-    strategy_name = 'pairs_frequent'
+    strategy_name = 'PAIRS_WMT_VS_TGT'
     portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_name), 'alpaca', '0.00', 0.75)
     add_assets(db, portfolio_id, 'TGT', 5)
     add_assets(db, portfolio_id, 'WMT', 5)
     onboarder = StrategyOnboarder(app_configs,
                                   strategy_name,
-                                  risk_profile_id,
                                   portfolio_id,
-                                  'pairs',
-                                  'TGT,WMT',
                                   "*/15 14-21 * * 1-5",
                                   "30 15-20 * * 1-5",
                                   [['TGT', '5', '3', 'FML'], ['WMT', '5', '3', 'FML']],

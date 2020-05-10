@@ -9,9 +9,28 @@ import strategy.strategy_functions as strategy_functions
 from library.data_source_interface import TickerDataSource
 from library.database_interface import Database, generate_unique_id
 from library.exchange_interface import AlpacaInterface
-from library.utils.file import parse_configs_file
+from library.utils.file import parse_configs_file, get_xml_element_attribute
 from library.utils.job import Job
 from library.utils.log import get_log_file_path, setup_log, log_configs
+import xml.etree.ElementTree as et
+
+
+NS = {
+    'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
+    'XML_CHECK_LABEL': 'execution/risk_profile/check',
+    'XML_CHECK_ATTRIBUTES': {
+        'NAME': 'name',
+        'THRESHOLD': 'threshold'
+    },
+    'XML_PARAMETER_LABEL': 'execution/parameters/parameter',
+    'XML_PARAMETER_ATTRIBUTES': {
+        'KEY': 'key',
+        'VALUE': 'value'
+    },'XML_FUNCTION_LABEL': 'execution/function',
+    'XML_FUNCTION_ATTRIBUTES': {
+        'FUNC': 'func'
+    }
+}
 
 
 class TradeExecutor:
@@ -193,46 +212,79 @@ class TradeExecutor:
 
 class SignalGenerator:
 
-    def __init__(self, db, log, run_date, run_time, ds=None):
+    def __init__(self, db, xml_path, ds=None):
         self._db = db
         self._ds = ds if ds else None
-        self._log = log
-        self._run_date = run_date
-        self._run_time = run_time
+        self._strategy = self._parse_strategy(xml_path)
+        self._context = StrategyContext(self._db, self._strategy['name'], self._strategy['run_at'], self._ds)
 
-    def _evaluate_strategy(self, strategy_name):
+        self.strategy_name = self._strategy['name']
+        self.risk_profile = self._strategy['risk_profile']
+
+    def _parse_strategy(self, xml_path):
+        # Get XML root.
+        root = et.parse(xml_path).getroot()
+
+        # Extract strategy name.
+        strategy_name = get_xml_element_attribute(root, 'name')
+
+        # Extract function name.
+        function = [t for t in root.findall(NS['XML_FUNCTION_LABEL'])]
+        if len(function) > 1:
+            globals.log.warning('Script expects only one strategy in XML file. Defaulting to first strategy.')
+        function = get_xml_element_attribute(function[0], NS['XML_FUNCTION_ATTRIBUTES']['FUNC'])
+
+        # Parse parameters.
+        parameter_elements = [t for t in root.findall(NS['XML_PARAMETER_LABEL'])]
+        parameters = {}
+        if parameter_elements:
+            for parameter in parameter_elements:
+                key = get_xml_element_attribute(parameter, NS['XML_PARAMETER_ATTRIBUTES']['KEY'])
+                value = get_xml_element_attribute(parameter, NS['XML_PARAMETER_ATTRIBUTES']['VALUE'])
+                parameters[key] = value
+
+        # Parse risk profile. {'strategy name': {'check name': check_threshold}}
+        risk_elements = [t for t in root.findall(NS['XML_CHECK_LABEL'])]
+        risk_profile = {}
+        for check in risk_elements:
+            name = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['NAME'])
+            threshold = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['THRESHOLD'])
+            risk_profile[strategy_name] = {name, threshold}
+
+        strategy = {
+            'function': function,
+            'parameters': parameters,
+            'name': strategy_name,
+            'run_at': get_xml_element_attribute(root, 'run_at', allow_none=True),
+            'risk_profile': risk_profile
+        }
+        return strategy
+
+    def generate_signals(self):
         # Get strategy function and arguments.
-        context = StrategyContext(self._db, strategy_name, self._run_date, self._run_time, self._ds)
-        strategy_row = self._db.get_one_row('strategies', 'name="{0}"'.format(strategy_name))
-        args = strategy_row[4]
-        func = strategy_row[5]
+        function = self._strategy['function']
+        parameters = self._strategy['parameters']
+        context = self._context
 
         # Check method exists.
-        if func not in dir(strategy_functions):
-            raise Exception('Strategy function "{0}" not found.'.format(func))
+        if function not in dir(strategy_functions):
+            raise Exception('Strategy function "{0}" not found.'.format(function))
 
-        # Prepare function call.
-        args = ['"{0}"'.format(a) for a in args.split(',')] if args else ''
-        args_str = ','.join(args)
         try:
-            signal = eval('strategy_functions.{0}(context,{1})'.format(func, args_str))
+            signals = eval('strategy_functions.{0}(context,parameters)'.format(function))
         except Exception as error:
-            signal = error
-            self._log.error('Error evaluating strategy "{0}": {1}'.format(strategy_name, error))
+            signals = error
+            globals.log.error('Error evaluating strategy "{0}": {1}'.format(self._strategy['name'], error))
 
-        return signal
-
-    def generate_signals(self, strategy):
-        return self._evaluate_strategy(strategy)
+        return signals
 
 
 class StrategyContext:
 
-    def __init__(self, db, strategy_name, run_date, run_time, ds=None):
+    def __init__(self, db, strategy_name, run_datetime, ds=None):
         now = datetime.datetime.now()
-        run_date = run_date if run_date else now.strftime('%Y%m%d')
-        run_time = run_time if run_time else now.strftime('%H%M%S')
-        self.now = datetime.datetime.strptime(run_date + run_time, '%Y%m%d%H%M%S')
+        run_datetime = run_datetime if run_datetime else now.strftime('%Y%m%d%H%M%S')
+        self.now = datetime.datetime.strptime(run_datetime, '%Y%m%d%H%M%S')
         self.db = db
         self.ds = ds if ds else None
         self.strategy_name = strategy_name
@@ -385,14 +437,9 @@ def parse_cmdline_args(app_name):
     parser.add_option('--dry_run', action="store_true", default=False)
 
     # Initiate script specific args.
-    parser.add_option('-s', '--strategy', dest="strategy")
-    parser.add_option('-d', '--data_source', dest="data_source")
     # Specify "simulate" or "execute" modes.
     parser.add_option('-m', '--mode', dest="mode")
-    # Can be ran for any date or time, both default to now.
-    #   these will help back testing, and can make the run_time precise and remove any lag in cron.
-    parser.add_option('--run_date', dest="run_date", default=None)
-    parser.add_option('--run_time', dest="run_time", default=None)
+    parser.add_option('-x', '--xml_path', dest="xml_path")
 
     options, args = parser.parse_args()
     return parse_configs_file({
@@ -405,11 +452,8 @@ def parse_cmdline_args(app_name):
         "debug": options.debug,
 
         # Parse script specific args.
-        "data_source": options.data_source,
-        "strategy": options.strategy.lower(),
         "mode": options.mode,
-        "run_date": options.run_date,
-        "run_time": options.run_time
+        "xml_path": options.xml_path
     })
 
 
@@ -431,19 +475,20 @@ def main():
     job.log()
 
     # Setup data source if one is specified in the args.
-    ds_name = globals.configs['data_source']
-    ds = TickerDataSource(db, ds_name) if ds_name else None
+    ds_name = 'FML'
+    ds = TickerDataSource(db, ds_name)
     globals.log.info('Initiated data source: {0}'.format(ds_name))
 
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
     job.update_status('Evaluating strategies')
-    signal_generator = SignalGenerator(db, globals.log, globals.configs['run_date'], globals.configs['run_time'], ds)
+    signal_generator = SignalGenerator(db, globals.configs['xml_path'], ds)
     # Only takes on strategy.
-    signals = signal_generator.generate_signals(globals.configs['strategy'])
+    signals = signal_generator.generate_signals()
 
     job.update_status('Processing signals')
     # Check for conflicting signals [Signals].
+    # TODO surely this can be part of signal generator?
     cleaned_signals = clean_signals(signals)
 
     if not cleaned_signals:
@@ -453,9 +498,6 @@ def main():
     globals.log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
     for signal in cleaned_signals:
         globals.log.info(str(signal))
-
-    # Calculate risk profile {'strategy name': {'check name': check_threshold}}.
-    risk_profile = generate_risk_profile(db, globals.configs['strategy'])
 
     # Initiate exchange.
     if globals.configs['mode'] == 'simulate':
@@ -467,19 +509,19 @@ def main():
         raise Exception('Mode "{0}" is not valid.'.format(globals.configs['mode']))
 
     # Initiate trade executor.
-    job.update_status('Proposing trades')
-    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(globals.configs['strategy']))[3]
+    job.update_status('Proposing_trades')
+    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(signal_generator.strategy_name.lower()))[2]
     trade_executor = TradeExecutor(db, portfolio_id, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(globals.configs['strategy'], cleaned_signals, risk_profile)
+    proposed_trades = trade_executor.propose_trades(signal_generator.strategy_name.lower(), cleaned_signals, signal_generator.risk_profile)
 
     # Execute trades.
-    job.update_status('Executing trades')
+    job.update_status('Executing_trades')
     executed_order_ids = trade_executor.execute_trades(proposed_trades)
 
     # Process trades.
-    job.update_status('Processing trades')
+    job.update_status('Processing_trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, globals.log)
 
     globals.log.info('Updated portfolio in database.')

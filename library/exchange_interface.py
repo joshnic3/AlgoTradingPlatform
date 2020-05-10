@@ -21,7 +21,7 @@ class AlpacaInterface:
         if not self.is_exchange_open():
             if globals.log:
                 globals.log.warning('Exchange is closed.')
-            if globals.configs['environment'] == 'prod':
+            if globals.configs and globals.configs['environment'] == 'prod':
                 raise Exception('Exchange is closed.')
 
     def _request_get(self, url, params=None, data=None, handle_error=False):
