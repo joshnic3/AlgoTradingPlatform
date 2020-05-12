@@ -3,20 +3,23 @@ import multiprocessing
 import optparse
 import os
 import sys
+import threading
 import time
 import xml.etree.ElementTree as et
 from multiprocessing.pool import ThreadPool
-import threading
 
-import library.bootstrap as globals
-from library.data_source_interface import TickerDataSource
-from library.database_interface import Database, generate_unique_id
-from library.utils.file import parse_configs_file, get_xml_element_attributes, get_xml_element_attribute
-from library.utils.job import Job
-from library.utils.log import get_log_file_path, setup_log, log_configs
+from library.bootstrap import Constants
+from library.interfaces.market_data import TickerDataSource
+from library.interfaces.twitter import TwitterDataSource
+from library.interfaces.sql_database import Database, generate_unique_id
+from library.utilities.file import parse_configs_file, get_xml_element_attributes, get_xml_element_attribute
+from library.utilities.job import Job
+from library.utilities.log import get_log_file_path, setup_log, log_configs
 
 NS = {
+    'XML_DATA_LABEL': 'data',
     'XML_TWAP_LABEL': 'data/twap',
+    'XML_TWITTER_LABEL': 'data/twitter',
     'XML_TWAP_ATTRIBUTES': {
         'NAME': 'name',
         'TOLERANCE': 'tolerance',
@@ -84,6 +87,7 @@ class TWAP:
         return self.value
 
     def save_to_db(self, db):
+        # TODO save to market data table.
         twap_id = generate_unique_id(self.symbol)
         times = [t[0] for t in self.ticks]
         start_time = min(times)
@@ -125,32 +129,35 @@ class TWAPGenerator:
             twap.save_to_db(db)
 
 
-class DataLoader:
+class TwapDataLoader:
 
-    def __init__(self, data_source):
+    def __init__(self, requirements_xml, data_source):
         self._data_source = data_source
+        self.requirements_xml = requirements_xml
+        self.required_data = []
+        self.data_objects = []
+        self.results = []
 
     @staticmethod
     def _tick_recorder(data_source, twap_generator, count, interval):
         completed = 0
-        multiplier = 0 if globals.configs['environment'] == 'dev' else 60
+        multiplier = 00 if Constants.configs['environment'] == 'dev' else 60
         while completed < int(count):
             twap_generator.get_ticker_values(data_source)
             completed += 1
             time.sleep(int(interval) * multiplier)
         thread_id = threading.get_ident()
         symbols = ', '.join([t.symbol for t in twap_generator.twaps])
-        globals.log.info('Tick recorder finished. pid: {0}, symbols: {1} '.format(thread_id, symbols))
+        Constants.log.info('TWAP data loader: Tick recorder finished. pid: {0}, symbols: {1} '.format(thread_id, symbols))
         return twap_generator
 
     @staticmethod
-    def parse_required_data(xml_path):
-        # Get XML root.
-        root = et.parse(xml_path).getroot()
+    def _log(msg):
+        Constants.log.info('TWAP data loader: {0}'.format(str(msg)))
 
+    def parse_required_data(self):
         # Generate twap data loader groups.
-        twap_generator_groups = []
-        for twap in root.findall(NS['XML_TWAP_LABEL']):
+        for twap in self.requirements_xml:
             # Extract attributes.
             group_attributes = list(NS['XML_TWAP_ATTRIBUTES'].keys())
             attributes = get_xml_element_attributes(twap, require=group_attributes)
@@ -159,37 +166,63 @@ class DataLoader:
             ticker_symbols = [get_xml_element_attribute(t, NS['XML_TICKER_ATTRIBUTES']['SYMBOL'])
                               for t in twap.findall(NS['XML_TICKER_LABEL'])]
             tolerance = int(attributes[NS['XML_TWAP_ATTRIBUTES']['TOLERANCE']])
-            twap_generator_groups.append((
+            self.required_data.append((
                 TWAPGenerator(ticker_symbols, attributes[NS['XML_TWAP_ATTRIBUTES']['NAME']], tolerance=tolerance),
                 int(attributes[NS['XML_TWAP_ATTRIBUTES']['COUNT']]),
                 int(attributes[NS['XML_TWAP_ATTRIBUTES']['INTERVAL']]))
             )
-        return twap_generator_groups
 
-    def record_ticks(self, twap_generator_groups):
+    def record_data(self):
+        self._log('Starting {0} tick recorder(s).'.format(len(self.required_data)))
         # Prepare multiprocessing pool.
         cpu_count = multiprocessing.cpu_count()
         pool = ThreadPool(cpu_count)
 
         # Do work asynchronously.
-        workers = [pool.apply_async(self._tick_recorder, args=(self._data_source, *g,)) for g in twap_generator_groups]
+        workers = [pool.apply_async(self._tick_recorder, args=(self._data_source, *g,)) for g in self.required_data]
         pool.close()
         pool.join()
 
         # Return data loader objects.
-        twap_generator_objects = [w.get() for w in workers]
-        return twap_generator_objects
+        self.data_objects = [w.get() for w in workers]
 
-    @staticmethod
-    def process(twap_generator_objects, db=None):
-        twaps = []
+    def process(self, db=None):
+        self._log('Processing and saving TWAPs.')
         # Record twaps to database.
-        for twap_generator in twap_generator_objects:
+        for twap_generator in self.data_objects:
             twap_generator.calculate()
             if db:
                 twap_generator.save_to_db(db)
-            twaps += twap_generator.twaps
-        return twaps
+            self.results += twap_generator.twaps
+        return self.results
+
+
+class TwitterDataLoader:
+
+    def __init__(self, requirements_xml, data_source):
+        self._data_source = data_source
+        self.requirements_xml = requirements_xml
+        self.required_data = []
+        self.data_objects = []
+        self.results = []
+
+    #     will have data_warning and tweets list of objects,
+    # will save to tweets table in market data db
+
+    @staticmethod
+    def _log(msg):
+        Constants.log.info('Twitter data loader: {0}'.format(str(msg)))
+
+    def parse_required_data(self):
+        for mention in self.requirements_xml:
+            self.required_data.append(mention)
+
+    def record_data(self):
+        self.data_objects = None
+
+    def process(self, db=None):
+        self.results = None
+        return self.results
 
 
 def parse_cmdline_args(app_name):
@@ -216,52 +249,69 @@ def parse_cmdline_args(app_name):
 
 def main():
     # Setup configs.
-    globals.configs = parse_cmdline_args('algo_trading_platform')
+    Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(globals.configs['logs_root_path'], globals.configs['job_name'])
-    globals.log = setup_log(log_path, True if globals.configs['environment'] == 'dev' else False)
-    log_configs(globals, globals.log)
+    log_path = get_log_file_path(Constants.configs['logs_root_path'], Constants.configs['job_name'])
+    Constants.log = setup_log(log_path, True if Constants.configs['environment'] == 'dev' else False)
+    log_configs(Constants, Constants.log)
 
     # Setup db connection.
-    db = Database(globals.configs['db_root_path'], 'algo_trading_platform', globals.configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
     db.log()
 
     # Initiate Job.
-    job = Job(globals.configs, db)
+    job = Job(Constants.configs)
     job.log()
-
-    # Initialise data loader.
-    data_loader = DataLoader(TickerDataSource(db, 'FML'))
 
     # Parse data requirements from XML file supplied in parameters.
     job.update_status('PROCESSING_DATA_REQUIREMENTS')
-    globals.log.info('Reading in data requirements.')
-    twap_generator_groups = data_loader.parse_required_data(globals.configs['xml_file'])
+    data_requirements = et.parse(Constants.configs['xml_file']).getroot()
 
-    # Record ticks.
-    job.update_status('RECORDING_TICKS')
-    globals.log.info('Starting {0} tick recorder(s).'.format(len(twap_generator_groups)))
-    twap_generator_objects = data_loader.record_ticks(twap_generator_groups)
+    # Initiate data loader(s).
+    data_loaders = []
 
-    # Process results.
-    job.update_status('CALCULATING_TWAPS')
-    globals.log.info('Processing and saving TWAPs.')
-    twaps = data_loader.process(twap_generator_objects, db)
+    # Load any Twitter requirements.
+    if data_requirements.findall(Constants.xml.twitter):
+        twitter_data_loader = TwitterDataLoader(data_requirements.findall(Constants.xml.twitter), TwitterDataSource())
+        twitter_data_loader.parse_required_data()
+        data_loaders.append(twitter_data_loader)
 
-    # Pretty print to log.
+    # Load any TWAP requirements, loading TWAPs last in-case there are multiple loaders as they are holding.
+    if data_requirements.findall(Constants.xml.twap):
+        twap_data_loader = TwapDataLoader(data_requirements.findall(Constants.xml.twap), TickerDataSource())
+        twap_data_loader.parse_required_data()
+        data_loaders.append(twap_data_loader)
+
+    # Record then process any data requirements.
     data_warnings = 0
-    for twap in twaps:
-        globals.log.info('{0}'.format(str(twap)))
-        if twap.data_warnings:
-            data_warnings += len(twap.data_warnings)
+    no_of_required_data_sets = sum([len(d.required_data) for d in data_loaders if d.required_data])
+    if no_of_required_data_sets:
+        Constants.log.info('Read {0} set(s) of required data.'.format(no_of_required_data_sets))
+
+        # Record data, these can be holding.
+        job.update_status('RECORDING_DATA')
+        [data_loader.record_data() for data_loader in data_loaders]
+
+        # Process results
+        job.update_status('PROCESSING_RESULTS')
+        for data_loader in data_loaders:
+            results = data_loader.process(db)
+            if results:
+                Constants.log.info('{0}'.format([str(t) for t in results]))
+                data_warnings += len([t.data_warnings for t in results])
+    else:
+        # Early termination because there is no required data.
+        job.terminate(condition='NO_REQUIRED_DATA')
+        return 0
 
     if data_warnings:
-        globals.log.info('Total data warning(s): {0}'.format(data_warnings))
+        Constants.log.info('Total data warning(s): {0}'.format(data_warnings))
 
     # Finish job.
     status = 2 if data_warnings else 0
     job.finished(status=status)
+    return status
 
 
 if __name__ == "__main__":

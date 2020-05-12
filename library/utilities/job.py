@@ -1,7 +1,8 @@
 import datetime
 
-import library.bootstrap as globals
-from library.utils.log import log_hr
+from library.bootstrap import Constants
+from library.utilities.log import log_hr
+from library.interfaces.sql_database import Database
 
 
 def get_run_count(db, script_name, version=None):
@@ -28,13 +29,13 @@ def is_script_new(db, script_name):
 class Job:
     # Maybe add a job phase table.
 
-    def __init__(self, configs, db):
+    def __init__(self, configs):
         self.name = configs['job_name'] if configs['job_name'] else 'manual_run'
         self.script = configs['script_name']
         self.start_time = datetime.datetime.now()
         self.status = None
 
-        self._db = db
+        self._db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
         self._parameters = ''
         self.id = str(abs(hash(self.name + self.start_time.strftime('%Y%m%d%H%M%S'))))
         self._version = configs['version']
@@ -58,28 +59,34 @@ class Job:
 
     def log(self, logger=None):
         if logger is None:
-            logger = globals.log
+            logger = Constants.log
         logger.info('Starting job: {0}'.format(self.__str__()))
         log_hr(logger)
 
     def update_status(self, status):
         self._set_status(status.upper())
 
-    def finished(self, logger=None, status=None):
-        if logger is None:
-            logger = globals.log
-        log_hr(logger)
-        self.update_status('COMPLETED')
+    def terminate(self, condition=None):
+        if condition is None:
+            self.update_status('TERMINATED_SUCCESSFULLY')
+        else:
+            self.update_status('TERMINATED_{0}'.format(condition))
+
+    def finished(self, status=None):
+        self.terminate()
         run_time = (datetime.datetime.now() - self.start_time).total_seconds()
         if status:
+            log_hr(Constants.log)
             status_map = {0: "SUCCESSFULLY",
                           1: "with ERRORS",
                           2: "with WARNINGS"}
 
             if status in status_map:
-                logger.info('Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
+                Constants.log.info(
+                    'Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
             else:
-                logger.info('Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
-                                                                                       status))
+                Constants.log.info(
+                    'Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
+                                                                               status))
         else:
-            logger.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))
+            Constants.log.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))

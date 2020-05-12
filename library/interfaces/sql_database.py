@@ -2,8 +2,8 @@ import os
 import datetime
 import sqlite3
 
-import library.bootstrap as globals
-from library.utils.log import log_hr
+from library.bootstrap import Constants
+from library.utilities.log import log_hr
 import library.bootstrap as script_globals
 
 
@@ -56,8 +56,8 @@ class Database:
         return '[name: {0}, environment: {1}]'.format(self._name, self._environment)
 
     def execute_sql(self, sql):
-        if script_globals.log:
-            script_globals.log.debug(sql)
+        if Constants.log:
+            Constants.log.debug(sql)
         self._cursor.execute(sql)
         results = [list(i) for i in self._cursor.fetchall()]
         self._connection.commit()
@@ -66,7 +66,7 @@ class Database:
     def insert_row(self, table, values):
         values = [str(v) for v in values]
         if table.lower() not in self.tables:
-            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
+            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
         self.execute_sql(sql)
@@ -77,7 +77,7 @@ class Database:
         if columns is None:
             columns = '*'
         if table not in self.tables:
-            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
+            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'SELECT {0} FROM {1}{2}'.format(columns,
                                               table,
@@ -86,7 +86,7 @@ class Database:
 
     def update_value(self, table, column, value, condition):
         if table.lower() not in self.tables:
-            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
+            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'UPDATE {0} SET {1}="{2}"{3}'.format(table,
                                                      column,
@@ -96,7 +96,8 @@ class Database:
 
     def get_one_row(self, table, condition, columns=None):
         if table.lower() not in self.tables:
-            script_globals.log.debug('Table "{0}" doesnt exist'.format(table))
+            if Constants.log:
+                Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         results = self.query_table(table, condition, columns)
         if len(results) > 1:
@@ -112,6 +113,6 @@ class Database:
 
     def log(self, logger=None):
         if logger is None:
-            logger = globals.log
+            logger = Constants.log
         logger.info('Connected to database: {0}'.format(self.__str__()))
         log_hr(logger)

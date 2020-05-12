@@ -1,4 +1,4 @@
-import strategy.strategy_utils as utils
+import library.utilities.strategy as utils
 
 
 def basic(context, parameters):
@@ -29,7 +29,7 @@ def pairs(context, parameters):
     from statistics import mean
 
     # Get all twaps for both symbols from the last hour.
-    one_hour_ago = utils.time_minutes_ago(context, 60)
+    one_hour_ago = utils.time_minutes_ago(context, int(parameters['minutes_to_look_back']))
     a_values = utils.get_values_in_datetime_range(context, parameters['symbol_a'], one_hour_ago, context.now)
     b_values = utils.get_values_in_datetime_range(context, parameters['symbol_b'], one_hour_ago, context.now)
 
@@ -43,7 +43,9 @@ def pairs(context, parameters):
     current_mean_difference = float(mean(relative_differences))
 
     # Generate signal.
-    if mean_relative_difference and current_mean_difference > float(mean_relative_difference) * float(parameters['threshold']):
+    condition = mean_relative_difference and (float(current_mean_difference) * float(parameters['threshold']) > float(mean_relative_difference))
+    condition = mean_relative_difference > parameters['value_threshold'] if 'value_threshold' in parameters else condition
+    if condition:
         # Decide which ticker is differing from the trend.
         # +ve = up, -ve = down
         a_change_direction = mean(a_values) - a_mean_value

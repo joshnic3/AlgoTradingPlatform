@@ -3,17 +3,16 @@ import optparse
 import os
 import sys
 import time
-
-import library.bootstrap as globals
-import strategy.strategy_functions as strategy_functions
-from library.data_source_interface import TickerDataSource
-from library.database_interface import Database, generate_unique_id
-from library.exchange_interface import AlpacaInterface
-from library.utils.file import parse_configs_file, get_xml_element_attribute
-from library.utils.job import Job
-from library.utils.log import get_log_file_path, setup_log, log_configs
 import xml.etree.ElementTree as et
 
+from library.bootstrap import Constants
+import library.strategy_functions as strategy_functions
+from library.interfaces.market_data import TickerDataSource
+from library.interfaces.sql_database import Database, generate_unique_id
+from library.interfaces.exchange import AlpacaInterface
+from library.utilities.file import parse_configs_file, get_xml_element_attribute
+from library.utilities.job import Job
+from library.utilities.log import get_log_file_path, setup_log, log_configs
 
 NS = {
     'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
@@ -22,11 +21,12 @@ NS = {
         'NAME': 'name',
         'THRESHOLD': 'threshold'
     },
-    'XML_PARAMETER_LABEL': 'execution/parameters/parameter',
+    'XML_PARAMETER_LABEL': 'execution/function/parameter',
     'XML_PARAMETER_ATTRIBUTES': {
         'KEY': 'key',
         'VALUE': 'value'
-    },'XML_FUNCTION_LABEL': 'execution/function',
+    },
+    'XML_FUNCTION_LABEL': 'execution/function',
     'XML_FUNCTION_ATTRIBUTES': {
         'FUNC': 'func'
     }
@@ -78,10 +78,10 @@ class TradeExecutor:
                 self.portfolio['assets'][asset] = int(position['qty'])
             else:
                 self.portfolio['assets'][asset] = 0
-                globals.log.warning('No position found on exchange for {0}'.format(asset))
+                Constants.log.warning('No position found on exchange for {0}'.format(asset))
 
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
-        strategy_risk_profile = risk_profile[strategy]
+        strategy_risk_profile = risk_profile[strategy.upper()]
         signal, symbol, no_of_units, target_price = proposed_trade
         current_exposure = self.calculate_exposure(symbol)
 
@@ -192,9 +192,12 @@ class TradeExecutor:
         self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
 
         # Update assets.
-        for asset in self.portfolio['assets']:
-            units = self.portfolio['assets'][asset]
-            self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(asset))
+        for symbol in self.portfolio['assets']:
+            units = int(self.portfolio['assets'][symbol])
+            self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(symbol))
+
+            # Calculate and update exposure.
+            self._db.update_value('assets', 'current_exposure', self.calculate_exposure(symbol), 'symbol="{}"'.format(symbol))
 
         # Valuate portfolio and record in database.
         tickers = ds.request_tickers([a for a in self.portfolio['assets']])
@@ -212,16 +215,15 @@ class TradeExecutor:
 
 class SignalGenerator:
 
-    def __init__(self, db, xml_path, ds=None):
-        self._db = db
-        self._ds = ds if ds else None
+    def __init__(self, xml_path, ds):
+        self._ds = ds
         self._strategy = self._parse_strategy(xml_path)
-        self._context = StrategyContext(self._db, self._strategy['name'], self._strategy['run_at'], self._ds)
-
         self.strategy_name = self._strategy['name']
         self.risk_profile = self._strategy['risk_profile']
+        self._context = StrategyContext(self._strategy['name'], self._strategy['run_at'], self._ds)
 
-    def _parse_strategy(self, xml_path):
+    @staticmethod
+    def _parse_strategy(xml_path):
         # Get XML root.
         root = et.parse(xml_path).getroot()
 
@@ -229,13 +231,13 @@ class SignalGenerator:
         strategy_name = get_xml_element_attribute(root, 'name')
 
         # Extract function name.
-        function = [t for t in root.findall(NS['XML_FUNCTION_LABEL'])]
+        function = [t for t in root.findall(Constants.xml.function)]
         if len(function) > 1:
-            globals.log.warning('Script expects only one strategy in XML file. Defaulting to first strategy.')
+            Constants.log.warning('Script expects only one strategy in XML file. Defaulting to first strategy.')
         function = get_xml_element_attribute(function[0], NS['XML_FUNCTION_ATTRIBUTES']['FUNC'])
 
         # Parse parameters.
-        parameter_elements = [t for t in root.findall(NS['XML_PARAMETER_LABEL'])]
+        parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
         parameters = {}
         if parameter_elements:
             for parameter in parameter_elements:
@@ -244,10 +246,10 @@ class SignalGenerator:
                 parameters[key] = value
 
         # Parse risk profile. {'strategy name': {'check name': check_threshold}}
-        risk_elements = [t for t in root.findall(NS['XML_CHECK_LABEL'])]
+        risk_elements = [t for t in root.findall(Constants.xml.check)]
         risk_profile = {}
         for check in risk_elements:
-            name = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['NAME'])
+            name = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['NAME']).lower()
             threshold = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['THRESHOLD'])
             risk_profile[strategy_name] = {name, threshold}
 
@@ -269,23 +271,24 @@ class SignalGenerator:
         # Check method exists.
         if function not in dir(strategy_functions):
             raise Exception('Strategy function "{0}" not found.'.format(function))
-
         try:
+            # Evaluate function.
             signals = eval('strategy_functions.{0}(context,parameters)'.format(function))
         except Exception as error:
             signals = error
-            globals.log.error('Error evaluating strategy "{0}": {1}'.format(self._strategy['name'], error))
+            Constants.log.error('Error evaluating strategy "{0}": {1}'.format(self._strategy['name'], error))
 
         return signals
 
 
 class StrategyContext:
 
-    def __init__(self, db, strategy_name, run_datetime, ds=None):
+    def __init__(self, strategy_name, run_datetime, ds=None):
         now = datetime.datetime.now()
         run_datetime = run_datetime if run_datetime else now.strftime('%Y%m%d%H%M%S')
         self.now = datetime.datetime.strptime(run_datetime, '%Y%m%d%H%M%S')
-        self.db = db
+        self.db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+        self.md_db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
         self.ds = ds if ds else None
         self.strategy_name = strategy_name
         self.signals = []
@@ -459,30 +462,25 @@ def parse_cmdline_args(app_name):
 
 def main():
     # Setup configs.
-    globals.configs = parse_cmdline_args('algo_trading_platform')
+    Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     # Setup logging.
-    log_path = get_log_file_path(globals.configs['logs_root_path'], globals.configs['job_name'])
-    globals.log = setup_log(log_path, True if globals.configs['environment'] == 'dev' else False)
-    log_configs(globals.configs)
+    log_path = get_log_file_path(Constants.configs['logs_root_path'], Constants.configs['job_name'])
+    Constants.log = setup_log(log_path, True if Constants.configs['environment'] == 'dev' else False)
+    log_configs(Constants.configs)
 
     # Setup database.
-    db = Database(globals.configs['db_root_path'], 'algo_trading_platform', globals.configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
     db.log()
 
     # Initiate Job
-    job = Job(globals.configs, db)
+    job = Job(Constants.configs)
     job.log()
-
-    # Setup data source if one is specified in the args.
-    ds_name = 'FML'
-    ds = TickerDataSource(db, ds_name)
-    globals.log.info('Initiated data source: {0}'.format(ds_name))
 
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
     job.update_status('Evaluating strategies')
-    signal_generator = SignalGenerator(db, globals.configs['xml_path'], ds)
+    signal_generator = SignalGenerator(Constants.configs['xml_path'], TickerDataSource())
     # Only takes on strategy.
     signals = signal_generator.generate_signals()
 
@@ -495,18 +493,18 @@ def main():
         # Script cannot go any further from this point, but should not error.
         raise Exception('No valid signals.')
 
-    globals.log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
+    Constants.log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
     for signal in cleaned_signals:
-        globals.log.info(str(signal))
+        Constants.log.info(str(signal))
 
     # Initiate exchange.
-    if globals.configs['mode'] == 'simulate':
-        exchange = AlpacaInterface(globals.configs['API_ID'], globals.configs['API_SECRET_KEY'], simulator=True)
-    elif globals.configs['mode'] == 'execute':
-        exchange = AlpacaInterface(globals.configs['API_ID'], globals.configs['API_SECRET_KEY'])
+    if Constants.configs['mode'] == 'simulate':
+        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
+    elif Constants.configs['mode'] == 'execute':
+        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'])
     else:
         # Script cannot go any further from this point.
-        raise Exception('Mode "{0}" is not valid.'.format(globals.configs['mode']))
+        raise Exception('Mode "{0}" is not valid.'.format(Constants.configs['mode']))
 
     # Initiate trade executor.
     job.update_status('Proposing_trades')
@@ -522,13 +520,13 @@ def main():
 
     # Process trades.
     job.update_status('Processing_trades')
-    processed_trades = trade_executor.process_executed_trades(executed_order_ids, globals.log)
+    processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
 
-    globals.log.info('Updated portfolio in database.')
-    trade_executor.update_portfolio_db(job.id, ds)
+    Constants.log.info('Updated portfolio in database.')
+    trade_executor.update_portfolio_db(job.id, TickerDataSource())
 
     # Log summary.
-    globals.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
+    Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
 
     job.finished()
 

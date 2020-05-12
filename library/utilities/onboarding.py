@@ -1,4 +1,4 @@
-from library.database_interface import generate_unique_id
+from library.interfaces.sql_database import generate_unique_id
 
 
 def add_strategy(db, name, porfolio_id):
@@ -13,12 +13,12 @@ def add_data_source(db, name, config):
     db.insert_row('data_sources', [data_source_id, name, config])
 
 
-def add_portfolio(db, name, exchange_name, capital, weighting):
+def add_portfolio(db, name, exchange_name, weighting):
     portfolio_id = generate_unique_id(name)
-    db.insert_row('portfolios', [portfolio_id, exchange_name, capital, weighting, None])
+    db.insert_row('portfolios', [portfolio_id, exchange_name, 0.0, weighting, None])
     return portfolio_id
 
 
-def add_assets(db, portfolio_id, symbol, units):
+def add_assets(db, portfolio_id, symbol, units=0):
     asset_id = generate_unique_id(symbol)
-    db.insert_row('assets', [asset_id, portfolio_id, symbol, units])
+    db.insert_row('assets', [asset_id, portfolio_id, symbol, units, 0.0])

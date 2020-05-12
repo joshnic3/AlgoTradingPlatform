@@ -1,7 +1,9 @@
 import requests
 
-from library.database_interface import Database
-from library.utils.file import read_json_file
+from library.interfaces.sql_database import Database
+from library.utilities.file import read_json_file, read_json_file
+import os
+from library.bootstrap import Constants
 
 
 # Data source db is constant so can be initiated in a function.
@@ -9,12 +11,13 @@ def initiate_data_source_db(db_root_path, environment):
     return Database(db_root_path, 'data_sources', environment)
 
 
-class DataSource:
+class TickerDataSource:
 
-    def __init__(self, db, name):
-        self.name = name
-        row = db.get_one_row('data_sources', 'name="{0}"'.format(name))
-        self._configs = read_json_file(row[2])
+    def __init__(self):
+        self.name = 'FML'
+        config_file = os.path.join(Constants.configs['configs_root_path'], 'fml_data_source_config.json')
+        self._configs = read_json_file(config_file)
+        Constants.log.info('Initiated data source: {0}'.format(self.name))
 
     def __str__(self):
         return self.name
@@ -43,12 +46,6 @@ class DataSource:
         for wildcard in wildcards_dict:
             url = url.replace(wildcard, wildcards_dict[wildcard])
         return url
-
-
-class TickerDataSource(DataSource):
-
-    def __init__(self, db, name):
-        DataSource.__init__(self, db, name)
 
     def _extract_data(self, result):
         # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.

@@ -5,9 +5,9 @@ import sys
 
 from flask import Flask, request
 
-from library.database_interface import Database
-from library.exchange_interface import AlpacaInterface
-from library.utils.file import parse_configs_file
+from library.interfaces.sql_database import Database
+from library.interfaces.exchange import AlpacaInterface
+from library.utilities.file import parse_configs_file
 
 app = Flask(__name__)
 
@@ -33,7 +33,7 @@ def twaps():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(configs['db_root_path'], 'market_data', configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -63,7 +63,7 @@ def symbols():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(configs['db_root_path'], 'market_data', configs['environment'])
 
     # Query TWAP table.
     result = db.execute_sql('SELECT DISTINCT symbol FROM twaps;')
@@ -91,7 +91,7 @@ def strategies():
             return response(400, 'Strategy does not exist.')
         data = {
             'name': strategy_row[1],
-            'portfolio_id': strategy_row[3],
+            'portfolio_id': strategy_row[2],
         }
         return response(200, data)
 
@@ -124,7 +124,7 @@ def portfolios():
         valuation_date_times = [r[2] for r in historical_valuations_rows]
         valuation_values = [float(r[3]) for r in historical_valuations_rows]
 
-        data = {"assets": {r[2]: int(r[3]) for r in asset_rows},
+        data = {"assets": {r[2]: [int(r[3]), float(r[4])] for r in asset_rows},
                 "cash": float(portfolio_row[2]),
                 "historical_valuations": list(zip(valuation_date_times, valuation_values)),
                 "updated_by": portfolio_row[4]}
@@ -132,6 +132,29 @@ def portfolios():
 
     portfolio_ids = [r[0] for r in db.query_table('portfolios')]
     return response(200, portfolio_ids)
+
+
+@app.route('/job')
+def jobs():
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Initiate database connection.
+    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
+        if job_row is None:
+            return response(400, 'Job does not exist.')
+
+        return response(200, job_row)
+
+    return response(401, 'Job id required.')
 
 
 def parse_cmdline_args(app_name):
@@ -155,5 +178,5 @@ if __name__ == '__main__':
     global configs
     configs = parse_cmdline_args('algo_trading_platform')
 
-    app.run('0.0.0.0')
-    # app.run()
+    # app.run('0.0.0.0')
+    app.run()
