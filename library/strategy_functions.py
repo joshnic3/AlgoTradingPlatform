@@ -25,7 +25,6 @@ def basic(context, parameters):
 
 
 def pairs(context, parameters):
-    # Short term pairs.
     from statistics import mean
 
     # Get all twaps for both symbols from the last hour.

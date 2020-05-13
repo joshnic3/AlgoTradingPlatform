@@ -336,38 +336,22 @@
       <change beforePath="$PROJECT_DIR$/../AlgoTradingPlatform/venv/pyvenv.cfg" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dictionaries/joshnicholls.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_loader.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/bootstrap.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/bootstrap.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/data_source_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/interfaces/market_data.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/database_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/interfaces/sql_database.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/db_interface.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/exchange_interface.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/interfaces/exchange.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/file_utils.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/file.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/file.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/job.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/job.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/log.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/utils/onboarding.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/onboarding.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/strategy_functions.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy/strategy_utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/strategy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/dateutil/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/dateutil/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/jinja2/ext.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/jinja2/ext.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/jinja2/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/jinja2/utils.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/interfaces/exchange.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/interfaces/exchange.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/interfaces/sql_database.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/interfaces/sql_database.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/strategy_functions.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/strategy_functions.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/utilities/log.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/log.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/__init__.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/commands/configuration.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/utils/logging.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/utils/logging.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/utils/typing.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/utils/typing.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/requests/cookies.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/requests/cookies.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/requests/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/requests/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/requests/cookies.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/requests/cookies.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/requests/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/requests/utils.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/werkzeug/http.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/werkzeug/http.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/werkzeug/utils.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/werkzeug/utils.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -384,7 +368,7 @@
     </option>
   </component>
   <component name="Git.Settings">
-    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/.." />
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="ROOT_SYNC" value="DONT_SYNC" />
     <option name="UPDATE_TYPE" value="MERGE" />
   </component>
@@ -593,6 +577,11 @@
           <url>file://$PROJECT_DIR$/strategy_executor.py</url>
           <line>83</line>
           <option name="timeStamp" value="28" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/library/strategy_functions.py</url>
+          <line>27</line>
+          <option name="timeStamp" value="29" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

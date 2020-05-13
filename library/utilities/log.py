@@ -4,10 +4,11 @@ import logging
 from library.bootstrap import Constants
 
 
-def get_log_file_path(root_path, job_name):
+def get_log_file_path(root_path, job_name=None):
+    job_name = job_name if job_name else os.path.basename(__file__)
     today = datetime.datetime.now()
     today_str = today.strftime("%Y%m%d%H%M%S")
-    file_name = '{0}_{1}.log'.format(job_name, today_str)
+    file_name = '{0}_{1}.log'.format(today_str, job_name)
     log_file_path_template = [root_path, file_name]
     return os.path.join(*log_file_path_template)
 
