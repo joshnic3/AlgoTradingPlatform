@@ -1,7 +1,7 @@
 import datetime
 
 from library.bootstrap import Constants
-from library.utilities.log import log_hr
+from library.utilities.log import log_hr, get_log_file_path
 from library.interfaces.sql_database import Database
 
 
@@ -54,7 +54,8 @@ class Job:
             self._db.update_value('jobs', 'status', status, 'id="{}"'.format(self.id))
             self._db.update_value('jobs', 'date_time', datetime.datetime.now(), 'id="{}"'.format(self.id))
         else:
-            self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, datetime.datetime.now(), status])
+            log_path = get_log_file_path(Constants.configs['logs_root_path'], job_name=Constants.configs['job_name'])
+            self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, datetime.datetime.now(), status, log_path])
         self.status = status
 
     def log(self, logger=None):

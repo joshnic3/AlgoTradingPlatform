@@ -195,6 +195,33 @@ def job():
     return response(401, 'Job id required.')
 
 
+@app.route('/job/log')
+def log():
+    # Returns log text for provided job id.
+
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Initiate database connection.
+    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
+        if job_row is None:
+            return response(401, 'Job doesnt exist.')
+        job_dict = query_result_to_dict([job_row], configs['tables']['algo_trading_platform']['jobs'])[0]
+        with open(job_dict['log_path'], 'r') as file:
+            data = file.read().replace('\n', '<br>')
+        return response(200, data)
+
+    return response(401, 'Job id required.')
+
+
 def parse_cmdline_args(app_name):
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
