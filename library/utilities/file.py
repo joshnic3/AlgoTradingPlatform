@@ -85,10 +85,10 @@ def get_xml_element_attributes(element, require=None):
     return attributes
 
 
-def get_xml_element_attribute(element, name, allow_none=False):
+def get_xml_element_attribute(element, name, required=False):
     if name in element.attrib:
         return element.attrib[name]
-    elif allow_none:
+    elif not required:
         return None
     else:
         raise Exception('Parameter "{0}" is missing'.format(name))

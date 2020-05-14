@@ -3,6 +3,7 @@ class Constants:
     def __init__(self):
         self.log = None
         self.configs = None
+        self.date_time_format = '%Y%m%d%H%M%S'
         self.xml = XMLNameSpace()
 
 
@@ -12,6 +13,9 @@ class XMLNameSpace:
         # Setup.
         self.portfolio = 'setup/portfolio'
         self.job = 'setup/schedule/job'
+
+        # Tick capture.
+        self.ticker = 'ticker'
 
         # Data requirements.
         self.twap = 'data/twap'

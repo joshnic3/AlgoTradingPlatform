@@ -65,6 +65,12 @@ class Job:
         log_hr(logger)
 
     def update_status(self, status):
+        # TODO replace with phase
+        #     add phase table and like with job id
+        #     this way we will only add rows to both tables
+        #     with maybe exception of saving the log path
+        #     job table can have name, script, verison, log_path, _time
+        #     Will use phase table to calc elapsed_run/start/end times
         self._set_status(status.upper())
 
     def terminate(self, condition=None):

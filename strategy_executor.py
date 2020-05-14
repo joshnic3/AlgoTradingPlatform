@@ -256,7 +256,7 @@ class SignalGenerator:
             'function': function,
             'parameters': parameters,
             'name': strategy_name,
-            'run_at': get_xml_element_attribute(root, 'run_at', allow_none=True),
+            'run_at': get_xml_element_attribute(root, 'run_at', required=False),
             'risk_profile': risk_profile
         }
         return strategy
@@ -476,6 +476,10 @@ def main():
     job = Job(Constants.configs)
     job.log()
 
+    # Update strategy row with job id.
+    strategy_name = get_xml_element_attribute(et.parse(Constants.configs['xml_path']).getroot(), 'name')
+    db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy_name.lower()))
+
     # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
     # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
     job.update_status('Evaluating strategies')
@@ -523,7 +527,6 @@ def main():
 
     Constants.log.info('Updated portfolio in database.')
     trade_executor.update_portfolio_db(TickerDataSource())
-    db.update_value('strategies', 'updated_by', job.id, 'portfolio="{}"'.format(trade_executor.portfolio['id']))
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
