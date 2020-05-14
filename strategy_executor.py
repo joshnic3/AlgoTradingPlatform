@@ -183,13 +183,12 @@ class TradeExecutor:
                 log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
         return processed_trades
 
-    def update_portfolio_db(self, updated_by, ds):
+    def update_portfolio_db(self, ds):
         # Ensure capital is up-to-date with exchange.
         self.sync_portfolio_with_exchange()
 
         # Add new row for portfolio with updated capital.
         self._db.update_value('portfolios', 'cash', self.portfolio['cash'], 'id="{}"'.format(self.portfolio['id']))
-        self._db.update_value('portfolios', 'updated_by', updated_by, 'id="{}"'.format(self.portfolio['id']))
 
         # Update assets.
         for symbol in self.portfolio['assets']:
@@ -523,7 +522,8 @@ def main():
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
 
     Constants.log.info('Updated portfolio in database.')
-    trade_executor.update_portfolio_db(job.id, TickerDataSource())
+    trade_executor.update_portfolio_db(TickerDataSource())
+    db.update_value('strategies', 'updated_by', job.id, 'portfolio="{}"'.format(trade_executor.portfolio['id']))
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))

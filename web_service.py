@@ -7,11 +7,14 @@ from flask import Flask, request
 
 
 from library.bootstrap import Constants
+from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
 from library.interfaces.exchange import AlpacaInterface
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new
+from strategy_executor import TradeExecutor
 import datetime
+from library.interfaces.market_data import TickerDataSource
 
 app = Flask(__name__)
 
@@ -25,7 +28,7 @@ def response(status, data=None):
 @app.route('/exchange_open')
 def exchange_open():
     # Return "True" if exchange is open and "False" if it is closed.
-    exchange = AlpacaInterface(configs['API_ID'], configs['API_SECRET_KEY'], simulator=True)
+    exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
     return response(200, str(exchange.is_exchange_open()))
 
 
@@ -36,11 +39,11 @@ def twaps():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'market_data', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -66,11 +69,11 @@ def strategies():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -80,11 +83,11 @@ def strategies():
         strategy_row = db.get_one_row('strategies', 'id="{0}"'.format(params['id']))
         if strategy_row is None:
             return response(400, 'Strategy does not exist.')
-        strategy_dict = query_result_to_dict([strategy_row], configs['tables']['algo_trading_platform']['strategies'])
+        strategy_dict = query_result_to_dict([strategy_row], Constants.configs['tables']['algo_trading_platform']['strategies'])
         return response(200, strategy_dict)
 
     all_rows = db.query_table('strategies')
-    all_rows_as_dict = query_result_to_dict(all_rows, configs['tables']['algo_trading_platform']['strategies'])
+    all_rows_as_dict = query_result_to_dict(all_rows, Constants.configs['tables']['algo_trading_platform']['strategies'])
     return response(200, all_rows_as_dict)
 
 
@@ -94,11 +97,11 @@ def portfolio():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -110,7 +113,7 @@ def portfolio():
         if portfolio_row is None:
             return response(400, 'Portfolio does not exist.')
 
-        portfolio_dict = query_result_to_dict([portfolio_row], configs['tables']['algo_trading_platform']['portfolios'])[0]
+        portfolio_dict = query_result_to_dict([portfolio_row], Constants.configs['tables']['algo_trading_platform']['portfolios'])[0]
 
         # Add current and historical value to portfolio data.
         historical_valuations_rows = db.query_table('historical_portfolio_valuations', 'portfolio_id="{0}"'.format(
@@ -120,12 +123,22 @@ def portfolio():
 
         historical_valuations = [historical_date_times, historical_values]
         portfolio_dict['historical_valuations'] = historical_valuations
-        portfolio_dict['value'] = historical_values[-1]
+        if len(historical_valuations) > 1:
+            if historical_values:
+                portfolio_dict['value'] = historical_values[-1]
+            else:
+                portfolio_dict['value'] = '-'
+        else:
+            if historical_values:
+                portfolio_dict['value'] = historical_valuations[0]
+            else:
+                portfolio_dict['value'] = '-'
+
 
         # Calculate total exposure.
         portfolio_dict['exposure'] = 0
         for asset in db.query_table('assets', 'portfolio_id="{0}"'.format(params['id'])):
-            asset_dict = query_result_to_dict([asset], configs['tables']['algo_trading_platform']['assets'])[0]
+            asset_dict = query_result_to_dict([asset], Constants.configs['tables']['algo_trading_platform']['assets'])[0]
             portfolio_dict['exposure'] += float(asset_dict['current_exposure'])
 
         # Add 24hr PnL to portfolio data.
@@ -134,9 +147,11 @@ def portfolio():
         for row in historical_valuations_rows:
             if datetime.datetime.strptime(row[2], '%Y%m%d%H%M%S') > twenty_four_hrs_ago:
                 valuations.append([row[2], row[3]])
-        portfolio_dict['pnl'] = float(valuations[0][1]) - float(valuations[-1][1])
+        if len(valuations) > 1:
+            portfolio_dict['pnl'] = float(valuations[0][1]) - float(valuations[-1][1])
+        else:
+            portfolio_dict['pnl'] = '-'
 
-        # TODO updated by should be in strat
         return response(200, portfolio_dict)
 
     return response(401, 'Portfolio id required.')
@@ -148,21 +163,26 @@ def assets():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
+        # Needs abstracting out, but ok like this for now. This takes time so look at caching it.
+        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
+        trade_executor = TradeExecutor(db, params['id'], exchange)
+        trade_executor.update_portfolio_db(TickerDataSource())
+
         portfolio_row = db.get_one_row('portfolios', 'id="{0}"'.format(params['id']))
         if portfolio_row is None:
             return response(400, 'Portfolio does not exist.')
         asset_rows = db.query_table('assets', 'portfolio_id="{0}"'.format(portfolio_row[0]))
-        assets_dict = query_result_to_dict(asset_rows, configs['tables']['algo_trading_platform']['assets'])
+        assets_dict = query_result_to_dict(asset_rows, Constants.configs['tables']['algo_trading_platform']['assets'])
         return response(200, assets_dict)
 
     return response(401, 'Portfolio id required.')
@@ -174,11 +194,11 @@ def job():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -187,7 +207,7 @@ def job():
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
         if job_row is None:
             return response(400, 'Job does not exist.')
-        job_dict = query_result_to_dict([job_row], configs['tables']['algo_trading_platform']['jobs'])[0]
+        job_dict = query_result_to_dict([job_row], Constants.configs['tables']['algo_trading_platform']['jobs'])[0]
         new_script = is_script_new(db, job_dict['script'])
         job_dict['version'] = '{0}{1}'.format(job_dict['version'], '(NEW)' if new_script else '')
         return response(200, job_dict)
@@ -201,11 +221,11 @@ def log():
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
-    if client_ip not in configs['authorised_ip_address']:
+    if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(configs['db_root_path'], 'algo_trading_platform', configs['environment'])
+    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -214,7 +234,7 @@ def log():
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
         if job_row is None:
             return response(401, 'Job doesnt exist.')
-        job_dict = query_result_to_dict([job_row], configs['tables']['algo_trading_platform']['jobs'])[0]
+        job_dict = query_result_to_dict([job_row], Constants.configs['tables']['algo_trading_platform']['jobs'])[0]
         with open(job_dict['log_path'], 'r') as file:
             data = file.read().replace('\n', '<br>')
         return response(200, data)
@@ -240,8 +260,7 @@ def parse_cmdline_args(app_name):
 
 if __name__ == '__main__':
     # Setup configs.
-    global configs
-    configs = parse_cmdline_args('algo_trading_platform')
+    Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     app.run('0.0.0.0')
     # app.run()

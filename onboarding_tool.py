@@ -107,8 +107,7 @@ def main():
             # Add any assets.
             for asset in portfolio.findall('asset'):
                 symbol = get_xml_element_attribute(asset, 'symbol')
-                units = int(get_xml_element_attribute(asset, 'units'))
-                add_assets(db, portfolio_id, symbol, units=units)
+                add_assets(db, portfolio_id, symbol)
 
         # Copy XML file to strategy directory.
         environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])

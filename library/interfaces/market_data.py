@@ -17,7 +17,8 @@ class TickerDataSource:
         self.name = 'FML'
         config_file = os.path.join(Constants.configs['configs_root_path'], 'fml_data_source_config.json')
         self._configs = read_json_file(config_file)
-        Constants.log.info('Initiated data source: {0}'.format(self.name))
+        if Constants.log:
+            Constants.log.info('Initiated data source: {0}'.format(self.name))
 
     def __str__(self):
         return self.name

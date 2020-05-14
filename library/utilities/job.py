@@ -74,10 +74,11 @@ class Job:
             self.update_status('TERMINATED_{0}'.format(condition))
 
     def finished(self, status=None):
+        log_hr()
         self.terminate()
         run_time = (datetime.datetime.now() - self.start_time).total_seconds()
+        # TODO save runtime to db
         if status:
-            log_hr(Constants.log)
             status_map = {0: "SUCCESSFULLY",
                           1: "with ERRORS",
                           2: "with WARNINGS"}
