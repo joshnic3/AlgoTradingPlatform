@@ -62,7 +62,8 @@ class Database:
     def insert_row(self, table, values):
         values = [str(v) for v in values]
         if table.lower() not in self.tables:
-            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
+            if Constants.log:
+                Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
         self.execute_sql(sql)
@@ -73,7 +74,8 @@ class Database:
         if columns is None:
             columns = '*'
         if table not in self.tables:
-            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
+            if Constants.log:
+                Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'SELECT {0} FROM {1}{2}'.format(columns,
                                               table,
@@ -82,7 +84,8 @@ class Database:
 
     def update_value(self, table, column, value, condition):
         if table.lower() not in self.tables:
-            Constants.log.debug('Table "{0}" doesnt exist'.format(table))
+            if Constants.log:
+                Constants.log.debug('Table "{0}" doesnt exist'.format(table))
             return None
         sql = 'UPDATE {0} SET {1}="{2}"{3}'.format(table,
                                                      column,
