@@ -47,7 +47,7 @@ class Job:
     def log(self, logger=None):
         if logger is None:
             logger = Constants.log
-        logger.info('Starting job: {0}'.format(self.__str__()))
+        logger.info('Starting job: {0}'.format(self.id))
         log_hr(logger)
 
     def _add_phase(self, name):

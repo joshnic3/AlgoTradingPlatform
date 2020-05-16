@@ -91,6 +91,7 @@ def main():
                                           })
 
     if 'onboard_strat' in functions:
+        # TODO use strategy parse function
         if 'xml_file' not in Constants.configs:
             raise Exception('XML file is required to onboard a strategy.')
         # Extract strategy name.
