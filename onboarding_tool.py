@@ -52,7 +52,7 @@ def main():
     Constants.configs = parse_cmdline_args()
 
     # Which functions will be doe.
-    if 'functions' in Constants.configs:
+    if Constants.configs['functions']:
         functions = [f.lower() for f in Constants.configs['functions'].split(',')]
     else:
         functions = ['init_env', 'onboard_strat', 'cron_jobs']
@@ -123,7 +123,7 @@ def main():
 
         reset = False
         interpreter = 'python3'
-        code_path = '/home/robot/projects/AlgoTradingPlatform'
+        code_path = '$ATP'
 
         # Initiate cron object.
         cron = CronTab(user=os.getlogin())
