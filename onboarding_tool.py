@@ -3,12 +3,14 @@ import os
 import sys
 import xml.etree.ElementTree as et
 
+from crontab import CronTab
+
 from library.bootstrap import Constants
 from library.interfaces.sql_database import initiate_database, Database
 from library.utilities.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, \
     copy_file, get_xml_element_attribute
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
-from crontab import CronTab
+from library.utilities.strategy import parse_strategy_from_xml
 
 NS = {
     'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
@@ -91,23 +93,20 @@ def main():
                                           })
 
     if 'onboard_strat' in functions:
-        # TODO use strategy parse function
         if 'xml_file' not in Constants.configs:
-            raise Exception('XML file is required to onboard a strategy.')
-        # Extract strategy name.
-        strategy = et.parse(Constants.configs['xml_file']).getroot()
-        strategy_name = get_xml_element_attribute(strategy, 'name').lower()
+            raise Exception('XML file is required to on board a strategy.')
 
         # Initiate strategy if it does not exist.
-        portfolio = strategy.findall(Constants.xml.portfolio)[0]
-
-        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_name)):
+        strategy_dict = parse_strategy_from_xml(Constants.configs['xml_file'])
+        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
             # Add portfolio and strategy.
-            portfolio_weighting = float(get_xml_element_attribute(portfolio, 'weighting'))
-            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_name), 'alpaca', portfolio_weighting)
-            add_strategy(db, strategy_name, portfolio_id)
+            portfolio_weighting = float(strategy_dict['weighting'])
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), 'alpaca', portfolio_weighting)
+            add_strategy(db, strategy_dict['name'], portfolio_id)
 
-            # Add any assets.
+            # Add any assets (a bit hacky).
+            strategy = et.parse(Constants.configs['xml_file']).getroot()
+            portfolio = strategy.findall(Constants.xml.portfolio)[0]
             for asset in portfolio.findall('asset'):
                 symbol = get_xml_element_attribute(asset, 'symbol')
                 add_assets(db, portfolio_id, symbol)
@@ -122,7 +121,8 @@ def main():
         if 'xml_file' not in Constants.configs:
             raise Exception('XML file is required to add cron jobs.')
 
-        reset = False
+        # Only existing reset jobs when initialising the environment.
+        reset = True if 'init_env' in functions else False
         interpreter = 'python3'
         code_path = '$ATP'
 

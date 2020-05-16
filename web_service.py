@@ -1,3 +1,4 @@
+import datetime
 import json
 import optparse
 import os
@@ -5,17 +6,13 @@ import sys
 
 from flask import Flask, request
 
-
 from library.bootstrap import Constants
-from library.bootstrap import Constants
-from library.interfaces.sql_database import Database, query_result_to_dict
+from library.data_loader import DataLoader
 from library.interfaces.exchange import AlpacaInterface
+from library.interfaces.sql_database import Database, query_result_to_dict
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new
 from strategy_executor import TradeExecutor
-import datetime
-from library.data_loader import DataLoader
-
 
 app = Flask(__name__)
 
@@ -113,7 +110,6 @@ def portfolio():
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
-        # TODO need to sanitise parameters.
         # Get portfolio data.
         portfolio_row = db.get_one_row('portfolios', 'id="{0}"'.format(params['id']))
         if portfolio_row is None:

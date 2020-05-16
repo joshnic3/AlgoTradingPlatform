@@ -1,13 +1,36 @@
-import library.utilities.strategy as utils
+import datetime
+
+
+def _get_latest_value(context, symbol):
+    return float(context.data['ticker'][symbol][-1][1])
+
+
+def _get_values_in_datetime_range(context, symbol, from_after, until_before):
+    return [price for date_time, price in context.data['ticker'][symbol] if until_before > date_time > from_after]
+
+
+def _get_todays_values(context, symbol):
+    now = context.now.strftime('%Y%m%d%H%M%S')
+    this_morning = '{0}0000'.format(now[8:])
+    return _get_values_in_datetime_range(context, symbol, this_morning, now)
+
+
+def _get_live_value(context, symbol):
+    result = context.ds.request_tickers([symbol, 'JPM'])
+    return float(result[symbol])
+
+
+def _time_minutes_ago(context, minutes):
+    return context.now - datetime.timedelta(minutes=minutes)
 
 
 def basic(context, parameters):
     from statistics import mean
 
     # Fetch static all data together.
-    eight_hours_ago = utils.time_minutes_ago(context, 60*8)
-    previous_values = utils.get_values_in_datetime_range(context, parameters['symbol'], eight_hours_ago, context.now)
-    latest_value = utils.get_live_value(context, parameters['symbol'])
+    eight_hours_ago = _time_minutes_ago(context, 60*8)
+    previous_values = _get_values_in_datetime_range(context, parameters['symbol'], eight_hours_ago, context.now)
+    latest_value = _get_live_value(context, parameters['symbol'])
 
     # Calculate values.
     mean_value = mean(previous_values)
@@ -28,9 +51,9 @@ def pairs(context, parameters):
     from statistics import mean
 
     # Get all twaps for both symbols from the last hour.
-    one_hour_ago = utils.time_minutes_ago(context, int(parameters['minutes_to_look_back']))
-    a_values = utils.get_values_in_datetime_range(context, parameters['symbol_a'], one_hour_ago, context.now)
-    b_values = utils.get_values_in_datetime_range(context, parameters['symbol_b'], one_hour_ago, context.now)
+    one_hour_ago = _time_minutes_ago(context, int(parameters['minutes_to_look_back']))
+    a_values = _get_values_in_datetime_range(context, parameters['symbol_a'], one_hour_ago, context.now)
+    b_values = _get_values_in_datetime_range(context, parameters['symbol_b'], one_hour_ago, context.now)
 
     # Get strategy variables.
     mean_relative_difference = context.get_variable('mean_relative_difference')
@@ -54,11 +77,11 @@ def pairs(context, parameters):
         if changing_ticker == parameters['symbol_a']:
             # If a's value is rising buy b, if a's value is dropping sell b.
             order_type = 'buy' if a_change_direction > 0 else 'sell'
-            context.add_signal(parameters['symbol_b'], order_type=order_type, target_value=utils.get_latest_value(context, parameters['symbol_b']))
+            context.add_signal(parameters['symbol_b'], order_type=order_type, target_value=_get_latest_value(context, parameters['symbol_b']))
         else:
             # If b's value is rising buy a, if b's value is dropping sell a.
             order_type = 'buy' if b_change_direction > 0 else 'sell'
-            context.add_signal(parameters['symbol_a'], order_type=order_type, target_value=utils.get_latest_value(context, parameters['symbol_a']))
+            context.add_signal(parameters['symbol_a'], order_type=order_type, target_value=_get_latest_value(context, parameters['symbol_a']))
     else:
         # Hold both.
         context.add_signal(parameters['symbol_a'])

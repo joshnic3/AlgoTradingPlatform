@@ -3,17 +3,17 @@ import optparse
 import os
 import sys
 import time
-import xml.etree.ElementTree as et
 
-from library.bootstrap import Constants
 import library.strategy_functions as strategy_functions
+from library.bootstrap import Constants
+from library.data_loader import DataLoader
+from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.market_data import TickerDataSource
 from library.interfaces.sql_database import Database, generate_unique_id
-from library.interfaces.exchange import AlpacaInterface
-from library.utilities.file import parse_configs_file, get_xml_element_attribute, get_xml_element_attributes
+from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
-from library.data_loader import DataLoader
+from library.utilities.strategy import parse_strategy_from_xml
 
 NS = {
     'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
@@ -99,8 +99,6 @@ class TradeExecutor:
         return True
 
     def propose_trades(self, strategy, signals, risk_profile):
-        # TODO This only assumes one trade will be made, total values of all potential trades need to be added up,
-        #  e.g. total potential exposure.
         # works fine for now as each run only processes one signal. And atm my strats will only buy/sell one asset.
         self.sync_portfolio_with_exchange()
         trades = []
@@ -171,7 +169,6 @@ class TradeExecutor:
             # Create order tuple with trade results.
             if status == 'filled':
                 trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
-            # TODO This needs to be handled differently for sell orders.
 
             if trade:
                 # Update portfolio capital.
@@ -230,13 +227,9 @@ class SignalGenerator:
 
     def generate_signals(self, strategy_dict):
         # Build strategy context.
-        context = StrategyContext(strategy_dict['name'], strategy_dict['run_at'], self._ds)
+        context = StrategyContext(strategy_dict['name'], strategy_dict['run_datetime'], self._ds)
         parameters = strategy_dict['parameters']
         context.data = strategy_dict['data']
-
-        # Not sure why I need these.
-        self.strategy_name = strategy_dict['name']
-        self.risk_profile = strategy_dict['risk_profile']
 
         # Check method exists.
         if strategy_dict['function'] not in dir(strategy_functions):
@@ -269,7 +262,7 @@ class SignalGenerator:
             symbol_signals = [s.signal for s in signals_per_unique_symbol[symbol]]
             symbol_signals_set = list(set(symbol_signals))
 
-            # If all the signals agree unify signal per symbol, else raise error for symbol (maybe allow manual override)
+            # If all the signals agree unify signal per symbol, else raise error for symbol.
             unanimous_signal = None if len(symbol_signals_set) > 1 else symbol_signals_set[0]
             if unanimous_signal:
                 target_values = [s.target_value for s in signals_per_unique_symbol[symbol]]
@@ -294,9 +287,7 @@ class SignalGenerator:
 class StrategyContext:
 
     def __init__(self, strategy_name, run_datetime, ds=None):
-        now = datetime.datetime.now()
-        run_datetime = run_datetime if run_datetime else now.strftime('%Y%m%d%H%M%S')
-        self.now = datetime.datetime.strptime(run_datetime, '%Y%m%d%H%M%S')
+        self.now = run_datetime
         self.db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
         self.data = None
         self.ds = ds if ds else None
@@ -376,35 +367,6 @@ class Signal:
         self.target_value = None
 
 
-def parse_strategy(xml_path):
-    # Get XML root.
-    root = et.parse(xml_path).getroot()
-
-    # Extract strategy name.
-    strategy_name = get_xml_element_attribute(root, 'name')
-
-    # Extract function name.
-    function = [t for t in root.findall(Constants.xml.function)][0]
-    function = get_xml_element_attribute(function, 'func', required=True)
-
-    # Parse parameters. {key: value}
-    parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
-    parameters = {i['key']: i['value'] for i in [get_xml_element_attributes(e) for e in parameter_elements]}
-
-    # Parse risk profile. {check name: check_threshold}
-    risk_elements = [t for t in root.findall(Constants.xml.check)]
-    risk_profile = {i['name']: i['threshold'] for i in [get_xml_element_attributes(e) for e in risk_elements]}
-
-    strategy = {
-        'function': function,
-        'parameters': parameters,
-        'name': strategy_name,
-        'run_at': get_xml_element_attribute(root, 'run_at', required=False),
-        'risk_profile': risk_profile,
-    }
-    return strategy
-
-
 def generate_risk_profile(db, strategy, risk_appetite=1.0):
     # Returns risk profile, dict of factor: values.
     risk_profile = {}
@@ -477,16 +439,13 @@ def main():
     job = Job()
     job.log()
 
-    # Update strategy row with job id.
-    strategy_name = get_xml_element_attribute(et.parse(Constants.configs['xml_path']).getroot(), 'name')
-    db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy_name.lower()))
-
     # Parse strategy xml.
-    strategy_dict = parse_strategy(Constants.configs['xml_path'])
+    strategy_dict = parse_strategy_from_xml(Constants.configs['xml_path'])
+    db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy_dict['name'].lower()))
 
     # Load required data sets.
     data_loader = DataLoader()
-    data_loader.load_from_xml(Constants.configs['xml_path'])
+    data_loader.load_from_xml(Constants.configs['xml_path'], strategy_dict['run_datetime'])
     strategy_dict['data'] = data_loader.data
 
     # Generate signals.
@@ -494,9 +453,9 @@ def main():
     signal_generator = SignalGenerator(TickerDataSource())
     signals = signal_generator.generate_signals(strategy_dict)
 
+    # Clean signals.
     job.update_phase('Processing signals')
     cleaned_signals = signal_generator.clean_signals(signals)
-
     if not cleaned_signals:
         # Script cannot go any further from this point, but should not error.
         job.finished(condition='no valid signals')
@@ -514,18 +473,18 @@ def main():
     else:
         # Script cannot go any further from this point.
         raise Exception('Mode "{0}" is not valid.'.format(Constants.configs['mode']))
-
     if not exchange.is_exchange_open():
+        # Script cannot go any further from this point, but should not error.
         job.finished(condition='exchange is closed')
         return 2
 
     # Initiate trade executor.
     job.update_phase('Proposing_trades')
-    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(strategy_name.lower()))[2]
+    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'].lower()))[2]
     trade_executor = TradeExecutor(db, portfolio_id, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(strategy_name.lower(), cleaned_signals, strategy_dict['risk_profile'])
+    proposed_trades = trade_executor.propose_trades(strategy_dict['name'].lower(), cleaned_signals, strategy_dict['risk_profile'])
 
     # Execute trades.
     job.update_phase('Executing_trades')

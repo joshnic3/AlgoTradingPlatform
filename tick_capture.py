@@ -86,6 +86,9 @@ def main():
         now = datetime.datetime.strftime(datetime.datetime.now(), Constants.date_time_format)
         db.insert_row('ticks', [0, now, tick['symbol'], tick['value']])
 
+        # Log ticks.
+        Constants.log.info('sym: {0}, price: {1}'.format(tick['symbol'], tick['value']))
+
     job.finished(status=0)
 
 

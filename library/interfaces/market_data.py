@@ -31,7 +31,6 @@ class TickerDataSource:
         raise Exception('Bad response from source: {0}, code: {1}'.format(self.name, response_code))
 
     def _call_api_return_as_dict(self, url):
-        results = None
         try:
             response = requests.get(url)
             self._catch_errors(response)
@@ -41,16 +40,16 @@ class TickerDataSource:
 
         return results
 
+    def _extract_data(self, result):
+        # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.
+        return dict(zip([r[self._configs['symbol_key']] for r in result], [r[self._configs['value_key']] for r in result]))
+
     @staticmethod
     def _prepare_api_call_url(template, wildcards_dict):
         url = template
         for wildcard in wildcards_dict:
             url = url.replace(wildcard, wildcards_dict[wildcard])
         return url
-
-    def _extract_data(self, result):
-        # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.
-        return dict(zip([r[self._configs['symbol_key']] for r in result], [r[self._configs['value_key']] for r in result]))
 
     def request_tickers(self, symbols):
         symbols_str = self._configs['delimiter'].join(symbols) if len(symbols) > 1 else symbols[0]
