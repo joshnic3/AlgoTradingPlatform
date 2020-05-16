@@ -18,10 +18,6 @@ class AlpacaInterface:
             'CLOCK': '{0}/v2/clock'.format(base_url)
         }
 
-        if not self.is_exchange_open():
-            if Constants.log:
-                Constants.log.warning('Exchange is closed.')
-
     def _request_get(self, url, params=None, data=None, handle_error=False):
         # Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
         results = requests.get(url, data=data, params=params, headers=self.headers)

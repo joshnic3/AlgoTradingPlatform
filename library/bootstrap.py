@@ -4,6 +4,7 @@ class Constants:
         self.log = None
         self.configs = None
         self.date_time_format = '%Y%m%d%H%M%S'
+        self.pp_time_format = '%H:%M.%S'
         self.xml = XMLNameSpace()
 
 
@@ -15,9 +16,11 @@ class XMLNameSpace:
         self.job = 'setup/schedule/job'
 
         # Tick capture.
-        self.ticker = 'ticker'
+        self.ticker = 'data/set/ticker'
 
         # Data requirements.
+        self.data_set = 'data/set'
+        self.tick = 'data/tick'
         self.twap = 'data/twap'
         self.twitter = 'data/twitter'
 

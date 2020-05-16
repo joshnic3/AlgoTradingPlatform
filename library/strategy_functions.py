@@ -64,6 +64,8 @@ def pairs(context, parameters):
         context.add_signal(parameters['symbol_a'])
         context.add_signal(parameters['symbol_b'])
 
+    # Could do something sexy like balance out exposure by selling assets.
+
     # Update context variable.
     context.set_variable('mean_relative_difference', current_mean_difference)
     context.set_variable('a_mean_value', mean(a_values))

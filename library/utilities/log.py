@@ -5,7 +5,7 @@ from library.bootstrap import Constants
 
 
 def get_log_file_path(root_path, job_name=None):
-    job_name = job_name if job_name else os.path.basename(__file__).split('.py')[0]
+    job_name = job_name if job_name else Constants.configs['script_name']
     today = datetime.datetime.now()
     today_str = today.strftime("%Y%m%d%H%M%S")
     file_name = '{0}_{1}.log'.format(today_str, job_name)

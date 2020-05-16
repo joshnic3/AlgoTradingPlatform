@@ -34,6 +34,7 @@ def parse_cmdline_args():
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
     parser.add_option('-c', '--config_file', dest="config_file")
+    parser.add_option('-f', '--functions', dest="functions")
     parser.add_option('-x', '--xml_file', dest="xml_file")
 
     options, args = parser.parse_args()
@@ -41,6 +42,7 @@ def parse_cmdline_args():
         "environment": options.environment.lower(),
         "root_path": options.root_path,
         "config_file": options.config_file,
+        "functions": options.functions,
         "xml_file": options.xml_file
     }
 

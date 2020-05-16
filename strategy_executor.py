@@ -10,9 +10,10 @@ import library.strategy_functions as strategy_functions
 from library.interfaces.market_data import TickerDataSource
 from library.interfaces.sql_database import Database, generate_unique_id
 from library.interfaces.exchange import AlpacaInterface
-from library.utilities.file import parse_configs_file, get_xml_element_attribute
+from library.utilities.file import parse_configs_file, get_xml_element_attribute, get_xml_element_attributes
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
+from library.data_loader import DataLoader
 
 NS = {
     'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
@@ -43,7 +44,7 @@ class TradeExecutor:
         asset_rows = db.query_table('assets', 'portfolio_id="{0}"'.format(portfolio_row[0]))
 
         self.portfolio = {"id": portfolio_id,
-                          "assets": {r[2]: int(r[3]) for r in asset_rows},
+                          "assets": {r[2]: {'symbol': r[2], 'units': int(r[3]), 'current_exposure': float(r[4])} for r in asset_rows},
                           "cash": float(portfolio_row[2])}
         # This is the passed exchange object, currently has nothing to do with exchange_name.
         self.exchange = exchange
@@ -72,23 +73,26 @@ class TradeExecutor:
             raise Exception('Could not sync portfolio with exchange.')
 
         # Sync with exchange too.
-        for asset in self.portfolio['assets']:
-            position = self.exchange.get_position(symbol=asset)
+        for symbol in self.portfolio['assets']:
+            asset = self.portfolio['assets'][symbol]
+            position = self.exchange.get_position(symbol=asset['symbol'])
             if position and 'qty' in position:
-                self.portfolio['assets'][asset] = int(position['qty'])
+                asset['units'] = int(position['qty'])
             else:
-                self.portfolio['assets'][asset] = 0
-                Constants.log.warning('No position found on exchange for {0}'.format(asset))
+                asset['units'] = 0
+                if Constants.log:
+                    Constants.log.warning('No position found on exchange for {0}'.format(asset['symbol']))
+            asset['current_exposure'] = self.calculate_exposure(asset['symbol'])
 
     def meets_risk_profile(self, strategy, proposed_trade, risk_profile):
-        strategy_risk_profile = risk_profile[strategy.upper()]
+        # Only accounts for this signal, is not aware of other signals.
         signal, symbol, no_of_units, target_price = proposed_trade
-        current_exposure = self.calculate_exposure(symbol)
+        current_exposure = sum([float(self.portfolio['assets'][a]['current_exposure']) for a in self.portfolio['assets']])
 
-        if 'max_exposure' in strategy_risk_profile:
+        if 'max_exposure' in risk_profile:
             if signal == 'buy':
                 potential_exposure = current_exposure + (no_of_units * target_price)
-                if potential_exposure > strategy_risk_profile['max_exposure']:
+                if potential_exposure > float(risk_profile['max_exposure']):
                     return False
         if 'min_liquidity' in risk_profile:
             return True
@@ -114,7 +118,7 @@ class TradeExecutor:
 
                 # Check portfolio has enough units to sell.
                 if good_trade and signal.signal == 'sell':
-                    units_held = self.portfolio['assets'][signal.symbol]
+                    units_held = self.portfolio['assets'][signal.symbol]['units']
                     if units_held - units < 0:
                         # Don't sell assets you don't have.
                         good_trade = False
@@ -130,7 +134,7 @@ class TradeExecutor:
                         good_trade = False
 
                 # Check trade satisfies risk requirements.
-                if good_trade and not self.meets_risk_profile(strategy, trade, risk_profile):
+                if good_trade and (not self.meets_risk_profile(strategy, trade, risk_profile)):
                     good_trade = False
 
                 if good_trade:
@@ -167,6 +171,7 @@ class TradeExecutor:
             # Create order tuple with trade results.
             if status == 'filled':
                 trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
+            # TODO This needs to be handled differently for sell orders.
 
             if trade:
                 # Update portfolio capital.
@@ -175,7 +180,7 @@ class TradeExecutor:
 
                 # Update portfolio assets.
                 change_in_units = int(trade[1]) * 1 if data['side'] == 'buy' else -1
-                self.portfolio['assets'][data['symbol']] += change_in_units
+                self.portfolio['assets'][data['symbol']]['units'] += change_in_units
 
                 # Add to processed trades list.
                 processed_trades.append(trade)
@@ -183,101 +188,107 @@ class TradeExecutor:
                 log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
         return processed_trades
 
-    def update_portfolio_db(self, ds):
+    def update_portfolio_db(self, ds, append_to_historical_values=True):
         # Ensure capital is up-to-date with exchange.
         self.sync_portfolio_with_exchange()
+
+        # Save to database.
 
         # Add new row for portfolio with updated capital.
         self._db.update_value('portfolios', 'cash', self.portfolio['cash'], 'id="{}"'.format(self.portfolio['id']))
 
         # Update assets.
         for symbol in self.portfolio['assets']:
-            units = int(self.portfolio['assets'][symbol])
+            units = int(self.portfolio['assets'][symbol]['units'])
             self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(symbol))
 
             # Calculate and update exposure.
             self._db.update_value('assets', 'current_exposure', self.calculate_exposure(symbol), 'symbol="{}"'.format(symbol))
 
-        # Valuate portfolio and record in database.
-        tickers = ds.request_tickers([a for a in self.portfolio['assets']])
-        total_current_value_of_assets = sum([self.portfolio['assets'][asset] * float(tickers[asset])
-                                             for asset in self.portfolio['assets']])
-        portfolio_value = self.portfolio['cash'] + total_current_value_of_assets
-        now = datetime.datetime.now()
-        self._db.insert_row('historical_portfolio_valuations', [
-            generate_unique_id(now),
-            self.portfolio['id'],
-            now.strftime('%Y%m%d%H%M%S'),
-            portfolio_value
-        ])
+        if append_to_historical_values:
+            # Valuate portfolio and record in database.
+            tickers = ds.request_tickers([a for a in self.portfolio['assets']])
+            total_current_value_of_assets = sum([self.portfolio['assets'][asset]['units'] * float(tickers[asset])
+                                                 for asset in self.portfolio['assets']])
+            portfolio_value = self.portfolio['cash'] + total_current_value_of_assets
+            now = datetime.datetime.now()
+            self._db.insert_row('historical_portfolio_valuations', [
+                generate_unique_id(now),
+                self.portfolio['id'],
+                now.strftime('%Y%m%d%H%M%S'),
+                portfolio_value
+            ])
 
 
 class SignalGenerator:
 
-    def __init__(self, xml_path, ds):
+    def __init__(self, ds):
         self._ds = ds
-        self._strategy = self._parse_strategy(xml_path)
-        self.strategy_name = self._strategy['name']
-        self.risk_profile = self._strategy['risk_profile']
-        self._context = StrategyContext(self._strategy['name'], self._strategy['run_at'], self._ds)
 
-    @staticmethod
-    def _parse_strategy(xml_path):
-        # Get XML root.
-        root = et.parse(xml_path).getroot()
+        self.strategy_name = None
+        self.risk_profile = None
 
-        # Extract strategy name.
-        strategy_name = get_xml_element_attribute(root, 'name')
+    def generate_signals(self, strategy_dict):
+        # Build strategy context.
+        context = StrategyContext(strategy_dict['name'], strategy_dict['run_at'], self._ds)
+        parameters = strategy_dict['parameters']
+        context.data = strategy_dict['data']
 
-        # Extract function name.
-        function = [t for t in root.findall(Constants.xml.function)]
-        if len(function) > 1:
-            Constants.log.warning('Script expects only one strategy in XML file. Defaulting to first strategy.')
-        function = get_xml_element_attribute(function[0], NS['XML_FUNCTION_ATTRIBUTES']['FUNC'])
-
-        # Parse parameters.
-        parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
-        parameters = {}
-        if parameter_elements:
-            for parameter in parameter_elements:
-                key = get_xml_element_attribute(parameter, NS['XML_PARAMETER_ATTRIBUTES']['KEY'])
-                value = get_xml_element_attribute(parameter, NS['XML_PARAMETER_ATTRIBUTES']['VALUE'])
-                parameters[key] = value
-
-        # Parse risk profile. {'strategy name': {'check name': check_threshold}}
-        risk_elements = [t for t in root.findall(Constants.xml.check)]
-        risk_profile = {}
-        for check in risk_elements:
-            name = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['NAME']).lower()
-            threshold = get_xml_element_attribute(check, NS['XML_CHECK_ATTRIBUTES']['THRESHOLD'])
-            risk_profile[strategy_name] = {name, threshold}
-
-        strategy = {
-            'function': function,
-            'parameters': parameters,
-            'name': strategy_name,
-            'run_at': get_xml_element_attribute(root, 'run_at', required=False),
-            'risk_profile': risk_profile
-        }
-        return strategy
-
-    def generate_signals(self):
-        # Get strategy function and arguments.
-        function = self._strategy['function']
-        parameters = self._strategy['parameters']
-        context = self._context
+        # Not sure why I need these.
+        self.strategy_name = strategy_dict['name']
+        self.risk_profile = strategy_dict['risk_profile']
 
         # Check method exists.
-        if function not in dir(strategy_functions):
-            raise Exception('Strategy function "{0}" not found.'.format(function))
+        if strategy_dict['function'] not in dir(strategy_functions):
+            raise Exception('Strategy function "{0}" not found.'.format(strategy_dict['function']))
         try:
             # Evaluate function.
-            signals = eval('strategy_functions.{0}(context,parameters)'.format(function))
+            signals = eval('strategy_functions.{0}(context,parameters)'.format(strategy_dict['function']))
         except Exception as error:
             signals = error
-            Constants.log.error('Error evaluating strategy "{0}": {1}'.format(self._strategy['name'], error))
+            Constants.log.error('Error evaluating strategy "{0}": {1}'.format(strategy_dict['name'], error))
 
         return signals
+
+    @staticmethod
+    def clean_signals(dirty_signals):
+        # If there is only one signal.
+        if isinstance(dirty_signals, Signal):
+            return dirty_signals
+        if not isinstance(dirty_signals, list):
+            return None
+
+        # Remove errors.
+        signals = [ds for ds in dirty_signals if isinstance(ds, Signal)]
+
+        # Group symbols by symbol.
+        unique_symbols = list(set([s.symbol for s in signals]))
+        signals_per_unique_symbol = {us: [s for s in signals if s.symbol == us] for us in unique_symbols}
+
+        for symbol in unique_symbols:
+            symbol_signals = [s.signal for s in signals_per_unique_symbol[symbol]]
+            symbol_signals_set = list(set(symbol_signals))
+
+            # If all the signals agree unify signal per symbol, else raise error for symbol (maybe allow manual override)
+            unanimous_signal = None if len(symbol_signals_set) > 1 else symbol_signals_set[0]
+            if unanimous_signal:
+                target_values = [s.target_value for s in signals_per_unique_symbol[symbol]]
+                if unanimous_signal == 'buy':
+                    # Buy for cheapest ask.
+                    final_signal_index = target_values.index(min(target_values))
+                elif unanimous_signal == 'sell':
+                    # Sell to highest bid.
+                    final_signal_index = target_values.index(max(target_values))
+                else:
+                    final_signal_index = 0
+                signals_per_unique_symbol[symbol] = signals_per_unique_symbol[symbol][final_signal_index]
+            else:
+                conflicting_signals_str = ', '.join([str(s) for s in signals_per_unique_symbol[symbol]])
+                raise Exception(
+                    'Could not unify conflicting signals for "{0}": {1}'.format(symbol, conflicting_signals_str))
+
+        # Return cleaned signals.
+        return [signals_per_unique_symbol[signal] for signal in unique_symbols]
 
 
 class StrategyContext:
@@ -287,7 +298,7 @@ class StrategyContext:
         run_datetime = run_datetime if run_datetime else now.strftime('%Y%m%d%H%M%S')
         self.now = datetime.datetime.strptime(run_datetime, '%Y%m%d%H%M%S')
         self.db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
-        self.md_db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
+        self.data = None
         self.ds = ds if ds else None
         self.strategy_name = strategy_name
         self.signals = []
@@ -365,43 +376,33 @@ class Signal:
         self.target_value = None
 
 
-def clean_signals(dirty_signals):
-    # If there is only one signal.
-    if isinstance(dirty_signals, Signal):
-        return dirty_signals
-    if not isinstance(dirty_signals, list):
-        return None
+def parse_strategy(xml_path):
+    # Get XML root.
+    root = et.parse(xml_path).getroot()
 
-    # Remove errors.
-    signals = [ds for ds in dirty_signals if isinstance(ds, Signal)]
+    # Extract strategy name.
+    strategy_name = get_xml_element_attribute(root, 'name')
 
-    # Group symbols by symbol.
-    unique_symbols = list(set([s.symbol for s in signals]))
-    signals_per_unique_symbol = {us: [s for s in signals if s.symbol == us] for us in unique_symbols}
+    # Extract function name.
+    function = [t for t in root.findall(Constants.xml.function)][0]
+    function = get_xml_element_attribute(function, 'func', required=True)
 
-    for symbol in unique_symbols:
-        symbol_signals = [s.signal for s in signals_per_unique_symbol[symbol]]
-        symbol_signals_set = list(set(symbol_signals))
+    # Parse parameters. {key: value}
+    parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
+    parameters = {i['key']: i['value'] for i in [get_xml_element_attributes(e) for e in parameter_elements]}
 
-        # If all the signals agree unify signal per symbol, else raise error for symbol (maybe allow manual override)
-        unanimous_signal = None if len(symbol_signals_set) > 1 else symbol_signals_set[0]
-        if unanimous_signal:
-            target_values = [s.target_value for s in signals_per_unique_symbol[symbol]]
-            if unanimous_signal == 'buy':
-                # Buy for cheapest ask.
-                final_signal_index = target_values.index(min(target_values))
-            elif unanimous_signal == 'sell':
-                # Sell to highest bid.
-                final_signal_index = target_values.index(max(target_values))
-            else:
-                final_signal_index = 0
-            signals_per_unique_symbol[symbol] = signals_per_unique_symbol[symbol][final_signal_index]
-        else:
-            conflicting_signals_str = ', '.join([str(s) for s in signals_per_unique_symbol[symbol]])
-            raise Exception('Could not unify conflicting signals for "{0}": {1}'.format(symbol, conflicting_signals_str))
+    # Parse risk profile. {check name: check_threshold}
+    risk_elements = [t for t in root.findall(Constants.xml.check)]
+    risk_profile = {i['name']: i['threshold'] for i in [get_xml_element_attributes(e) for e in risk_elements]}
 
-    # Return cleaned signals.
-    return [signals_per_unique_symbol[signal] for signal in unique_symbols]
+    strategy = {
+        'function': function,
+        'parameters': parameters,
+        'name': strategy_name,
+        'run_at': get_xml_element_attribute(root, 'run_at', required=False),
+        'risk_profile': risk_profile,
+    }
+    return strategy
 
 
 def generate_risk_profile(db, strategy, risk_appetite=1.0):
@@ -473,28 +474,33 @@ def main():
     db.log()
 
     # Initiate Job
-    job = Job(Constants.configs)
+    job = Job()
     job.log()
 
     # Update strategy row with job id.
     strategy_name = get_xml_element_attribute(et.parse(Constants.configs['xml_path']).getroot(), 'name')
     db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy_name.lower()))
 
-    # Evaluate strategy [Signals], just this section can be used to build a strategy function test tool.
-    # Possibly pass in exchange here so can be used to get live data instead of ds (ds is good enough for MVP).
-    job.update_status('Evaluating strategies')
-    signal_generator = SignalGenerator(Constants.configs['xml_path'], TickerDataSource())
-    # Only takes on strategy.
-    signals = signal_generator.generate_signals()
+    # Parse strategy xml.
+    strategy_dict = parse_strategy(Constants.configs['xml_path'])
 
-    job.update_status('Processing signals')
-    # Check for conflicting signals [Signals].
-    # TODO surely this can be part of signal generator?
-    cleaned_signals = clean_signals(signals)
+    # Load required data sets.
+    data_loader = DataLoader()
+    data_loader.load_from_xml(Constants.configs['xml_path'])
+    strategy_dict['data'] = data_loader.data
+
+    # Generate signals.
+    job.update_phase('Generating signals')
+    signal_generator = SignalGenerator(TickerDataSource())
+    signals = signal_generator.generate_signals(strategy_dict)
+
+    job.update_phase('Processing signals')
+    cleaned_signals = signal_generator.clean_signals(signals)
 
     if not cleaned_signals:
         # Script cannot go any further from this point, but should not error.
-        raise Exception('No valid signals.')
+        job.finished(condition='no valid signals')
+        return 2
 
     Constants.log.info('Generated {0} valid signal(s).'.format(len(cleaned_signals)))
     for signal in cleaned_signals:
@@ -509,20 +515,24 @@ def main():
         # Script cannot go any further from this point.
         raise Exception('Mode "{0}" is not valid.'.format(Constants.configs['mode']))
 
+    if not exchange.is_exchange_open():
+        job.finished(condition='exchange is closed')
+        return 2
+
     # Initiate trade executor.
-    job.update_status('Proposing_trades')
-    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(signal_generator.strategy_name.lower()))[2]
+    job.update_phase('Proposing_trades')
+    portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(strategy_name.lower()))[2]
     trade_executor = TradeExecutor(db, portfolio_id, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(signal_generator.strategy_name.lower(), cleaned_signals, signal_generator.risk_profile)
+    proposed_trades = trade_executor.propose_trades(strategy_name.lower(), cleaned_signals, strategy_dict['risk_profile'])
 
     # Execute trades.
-    job.update_status('Executing_trades')
+    job.update_phase('Executing_trades')
     executed_order_ids = trade_executor.execute_trades(proposed_trades)
 
     # Process trades.
-    job.update_status('Processing_trades')
+    job.update_phase('Processing_trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
 
     Constants.log.info('Updated portfolio in database.')

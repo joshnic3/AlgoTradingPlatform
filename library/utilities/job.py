@@ -3,6 +3,7 @@ import datetime
 from library.bootstrap import Constants
 from library.utilities.log import log_hr, get_log_file_path
 from library.interfaces.sql_database import Database
+import os
 
 
 def get_run_count(db, script_name, version=None):
@@ -29,34 +30,19 @@ def is_script_new(db, script_name):
 class Job:
     # Maybe add a job phase table.
 
-    def __init__(self, configs):
-        self.name = configs['job_name'] if configs['job_name'] else 'manual_run'
-        self.script = configs['script_name']
-        self.start_time = datetime.datetime.now()
-        self.status = None
+    def __init__(self):
+        self.name = Constants.configs['job_name'] if Constants.configs['job_name'] else Constants.configs['script_name']
+        self.id = str(abs(hash(self.name + datetime.datetime.now().strftime(Constants.date_time_format))))
+        self.script = Constants.configs['script_name']
+        self.phase_name = None
 
         self._db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
-        self._parameters = ''
-        self.id = str(abs(hash(self.name + self.start_time.strftime('%Y%m%d%H%M%S'))))
-        self._version = configs['version']
-        self._set_status('INITIATED')
 
-    def __str__(self):
-        is_new = is_script_new(self._db, self.script)
-        return '[id: {0}, job: {1}, script: {2}, code version: {3}]'.format(self.id,
-                                                                            self.name,
-                                                                            self.script,
-                                                                            '{0}{1}'.format(self._version,
-                                                                                            '(NEW)' if is_new else ''))
+        self._version = Constants.configs['version']
 
-    def _set_status(self, status):
-        if self.status:
-            self._db.update_value('jobs', 'status', status, 'id="{}"'.format(self.id))
-            self._db.update_value('jobs', 'date_time', datetime.datetime.now(), 'id="{}"'.format(self.id))
-        else:
-            log_path = get_log_file_path(Constants.configs['logs_root_path'], job_name=Constants.configs['job_name'])
-            self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, datetime.datetime.now(), status, log_path])
-        self.status = status
+        log_path = get_log_file_path(Constants.configs['logs_root_path'], job_name=self.name)
+        self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, log_path, None])
+        self.update_phase("INITIATED")
 
     def log(self, logger=None):
         if logger is None:
@@ -64,26 +50,29 @@ class Job:
         logger.info('Starting job: {0}'.format(self.__str__()))
         log_hr(logger)
 
-    def update_status(self, status):
-        # TODO replace with phase
-        #     add phase table and like with job id
-        #     this way we will only add rows to both tables
-        #     with maybe exception of saving the log path
-        #     job table can have name, script, verison, log_path, _time
-        #     Will use phase table to calc elapsed_run/start/end times
-        self._set_status(status.upper())
+    def _add_phase(self, name):
+        phase_id = str(abs(hash(name + self.id)))
+        date_time = datetime.datetime.now().strftime(Constants.date_time_format)
+        self._db.insert_row('phases', [phase_id, self.id, date_time, name])
+        return phase_id
 
-    def terminate(self, condition=None):
-        if condition is None:
-            self.update_status('TERMINATED_SUCCESSFULLY')
-        else:
-            self.update_status('TERMINATED_{0}'.format(condition))
+    def update_phase(self, phase):
+        self.phase_name = phase.replace(' ', '_').upper()
+        phase_id = self._add_phase(self.phase_name)
+        self._db.update_value('job', 'phase_id', phase_id, 'id="{0}"'.format(self.id))
 
-    def finished(self, status=None):
+    def finished(self, status=None, condition=None):
         log_hr()
-        self.terminate()
-        run_time = (datetime.datetime.now() - self.start_time).total_seconds()
-        # TODO save runtime to db
+        if condition is None:
+            self.update_phase('TERMINATED_SUCCESSFULLY')
+        else:
+            self.update_phase('TERMINATED_{0}'.format(condition))
+
+        start_time = self._db.get_one_row('phases', 'job_id="{0}" AND name="INITIATED"'.format(self.id))[2]
+        start_time = datetime.datetime.strptime(start_time, Constants.date_time_format)
+        run_time = round((datetime.datetime.now() - start_time).total_seconds(), 3)
+        self._db.update_value('jobs', 'elapsed_time', run_time, 'id="{0}"'.format(self.id))
+
         if status:
             status_map = {0: "SUCCESSFULLY",
                           1: "with ERRORS",

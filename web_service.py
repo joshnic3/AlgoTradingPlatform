@@ -14,7 +14,8 @@ from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new
 from strategy_executor import TradeExecutor
 import datetime
-from library.interfaces.market_data import TickerDataSource
+from library.data_loader import DataLoader
+
 
 app = Flask(__name__)
 
@@ -32,8 +33,8 @@ def exchange_open():
     return response(200, str(exchange.is_exchange_open()))
 
 
-@app.route('/twaps')
-def twaps():
+@app.route('/market_data')
+def market_data():
     # Returns a time series data for a ticker with provided symbol and within a given datetime range.
     # Cannot return as dict as element order is not guaranteed.
 
@@ -42,25 +43,28 @@ def twaps():
     if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
-    # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
-
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
 
-    # Query TWAP table.
     if 'symbol' in params:
-        if 'before' in params and 'after' in params:
-            condition = 'symbol="{0}" AND start_time>"{1}" AND end_time<"{2}"'.format(params['symbol'].upper(), params['after'],
-                                                                                      params['before'])
-        else:
-            condition = 'symbol="{0}"'.format(params['symbol'])
+        symbol = params['symbol'].upper()
 
-        result = db.query_table('twaps', condition)
+    if 'before' in params:
+        before = params['before']
     else:
-        result = db.query_table('twaps')
+        before = datetime.datetime.now()
 
-    return response(200, list(zip([r[1] for r in result], [r[4] for r in result])))
+    if 'after' in params:
+        after = params['after']
+    else:
+        after = datetime.datetime.now() - datetime.timedelta(hours=24)
+
+    # Return data.
+    data_loader = DataLoader()
+    data_loader.load_tickers(symbol, before, after)
+    data = data_loader.data['ticker'][symbol]
+    data = [(d[0].strftime(Constants.pp_time_format), d[1]) for d in data]
+    return response(200, data)
 
 
 @app.route('/strategies')
@@ -89,6 +93,8 @@ def strategies():
     all_rows = db.query_table('strategies')
     all_rows_as_dict = query_result_to_dict(all_rows, Constants.configs['tables']['algo_trading_platform']['strategies'])
     return response(200, all_rows_as_dict)
+
+
 
 
 @app.route('/portfolio')
@@ -134,7 +140,6 @@ def portfolio():
             else:
                 portfolio_dict['value'] = '-'
 
-
         # Calculate total exposure.
         portfolio_dict['exposure'] = 0
         for asset in db.query_table('assets', 'portfolio_id="{0}"'.format(params['id'])):
@@ -145,10 +150,10 @@ def portfolio():
         twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
         valuations = []
         for row in historical_valuations_rows:
-            if datetime.datetime.strptime(row[2], '%Y%m%d%H%M%S') > twenty_four_hrs_ago:
+            if datetime.datetime.strptime(row[2], Constants.date_time_format) > twenty_four_hrs_ago:
                 valuations.append([row[2], row[3]])
         if len(valuations) > 1:
-            portfolio_dict['pnl'] = float(valuations[0][1]) - float(valuations[-1][1])
+            portfolio_dict['pnl'] = round(float(valuations[0][1]) - float(valuations[-1][1]), 2)
         else:
             portfolio_dict['pnl'] = '-'
 
@@ -176,14 +181,10 @@ def assets():
         # Needs abstracting out, but ok like this for now. This takes time so look at caching it.
         exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
         trade_executor = TradeExecutor(db, params['id'], exchange)
-        trade_executor.update_portfolio_db(TickerDataSource())
-
-        portfolio_row = db.get_one_row('portfolios', 'id="{0}"'.format(params['id']))
-        if portfolio_row is None:
+        trade_executor.sync_portfolio_with_exchange()
+        if trade_executor is None:
             return response(400, 'Portfolio does not exist.')
-        asset_rows = db.query_table('assets', 'portfolio_id="{0}"'.format(portfolio_row[0]))
-        assets_dict = query_result_to_dict(asset_rows, Constants.configs['tables']['algo_trading_platform']['assets'])
-        return response(200, assets_dict)
+        return response(200, trade_executor.portfolio['assets'])
 
     return response(401, 'Portfolio id required.')
 
@@ -205,11 +206,16 @@ def job():
 
     if 'id' in params:
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
-        if job_row is None:
-            return response(400, 'Job does not exist.')
         job_dict = query_result_to_dict([job_row], Constants.configs['tables']['algo_trading_platform']['jobs'])[0]
         new_script = is_script_new(db, job_dict['script'])
         job_dict['version'] = '{0}{1}'.format(job_dict['version'], '(NEW)' if new_script else '')
+
+        # Extract phase data.
+        phase_row = db.query_table('phases', 'job_id="{0}"'.format(job_dict['id']))
+        phase_dict = query_result_to_dict(phase_row, Constants.configs['tables']['algo_trading_platform']['phases'])[-1]
+        job_dict['phase_name'] = phase_dict['name']
+        phase_datetime = datetime.datetime.strptime(phase_dict['datetime'], Constants.date_time_format)
+        job_dict['phase_datetime'] = phase_datetime.strftime(Constants.pp_time_format)
         return response(200, job_dict)
 
     return response(401, 'Job id required.')
@@ -263,4 +269,4 @@ if __name__ == '__main__':
     Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     app.run('0.0.0.0')
-    # app.run()
+    app.run()

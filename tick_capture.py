@@ -46,10 +46,11 @@ def main():
     db.log()
 
     # Initiate Job.
-    job = Job(Constants.configs)
+    job = Job()
     job.log()
 
     # Load required symbols.
+    job.update_phase('loading requirements')
     ticks = []
     for tick_requirement in et.parse(Constants.configs['xml_file']).getroot():
         symbol = get_xml_element_attribute(tick_requirement, 'symbol', required=True)
@@ -61,11 +62,13 @@ def main():
     Constants.log.info('Loaded {0} required tickers.'.format(len(ticks)))
 
     # Request data.
+    job.update_phase('requesting data')
     ticker_data_source = TickerDataSource()
     data_source_values = ticker_data_source.request_tickers([t['symbol'] for t in ticks])
     Constants.log.info('Recorded {0} ticks.'.format(len(data_source_values)))
 
     # Process ticks
+    job.update_phase('processing data')
     for tick in ticks:
         if tick['symbol'] in data_source_values:
             tick['value'] = data_source_values[tick['symbol']]
@@ -82,6 +85,8 @@ def main():
         # Save tick to database.
         now = datetime.datetime.strftime(datetime.datetime.now(), Constants.date_time_format)
         db.insert_row('ticks', [0, now, tick['symbol'], tick['value']])
+
+    job.finished(status=0)
 
 
 if __name__ == "__main__":
