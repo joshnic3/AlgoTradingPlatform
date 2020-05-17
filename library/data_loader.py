@@ -55,39 +55,18 @@ class DataLoader:
         self.type = 'ticker'
         before = datetime.datetime.strftime(before, Constants.date_time_format)
         after = datetime.datetime.strftime(after, Constants.date_time_format)
-        self.data[self.type] = {}
-        self.warnings[self.type] = {}
-        self.data[self.type][symbol], self.warnings[self.type][symbol] = self._load_ticks(symbol, before, after)
-
-    def load_from_xml(self, xml_file, now=None):
-        # Allow custom reference time for back testing.
-        now = now if isinstance(now, datetime.datetime) else datetime.datetime.now()
-        strategy = et.parse(xml_file).getroot()
-
-        tickers = strategy.findall(Constants.xml.ticker)
-        if tickers:
-            self.type = 'ticker'
-            self.data[self.type] = {}
-            self.warnings[self.type] = {}
-            for ticker in tickers:
-                # Extract ticker symbol.
-                symbol = get_xml_element_attribute(ticker, 'symbol', required=True)
-
-                # Extract after datetime.
-                after = get_xml_element_attribute(ticker, 'after', required=False)
-                after = after if after else '00000000000000'
-
-                # Extract before datetime.
-                before = get_xml_element_attribute(ticker, 'before', required=False)
-                before = before if before else datetime.datetime.strftime(now, Constants.date_time_format)
-
-                # Extract stale scope
-                stale_scope = get_xml_element_attribute(ticker, 'stale_scope', required=False)
-
-                # Load data checks.
-                data, warning = self._load_ticks(symbol, before, after, stale_scope=stale_scope)
+        data, warnings = self._load_ticks(symbol, before, after)
+        if data:
+            if self.type in self.data:
                 self.data[self.type][symbol] = data
-                self.warnings[self.type][symbol] = warning
+            else:
+                self.data[self.type] = {symbol: data}
+        if warnings:
+            if self.type in self.warnings:
+                self.warnings[self.type][symbol] = warnings
+            else:
+                self.warnings[self.type] = {symbol: warnings}
+
 
 
 

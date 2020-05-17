@@ -11,24 +11,27 @@ class Constants:
 class XMLNameSpace:
 
     def __init__(self):
-        # Setup.
-        self.portfolio = 'setup/portfolio'
-        self.job = 'setup/schedule/job'
-
-        # Tick capture.
-        self.ticker = 'data/set/ticker'
+        # Strategy setup.
+        self.setup = 'setup'
+        self.portfolio = '{0}/portfolio'.format(self.setup)
+        self.cash = '{0}/cash'.format(self.portfolio)
+        self.asset = '{0}/asset'.format(self.portfolio)
+        self.job = '{0}/job'.format(self.setup)
 
         # Data requirements.
-        self.data_set = 'data/set'
-        self.tick = 'data/tick'
-        self.twap = 'data/twap'
-        self.twitter = 'data/twitter'
+        self.data_requirements = 'data_requirements'
+        self.ticker = '{0}/ticker'.format(self.data_requirements)
 
-        # Strategy Execution.
-        self.risk_profile = 'execution/risk_profile'
-        self.check = 'execution/risk_profile/check'
-        self.function = 'execution/function'
-        self.parameter = 'execution/function/parameter'
+        # Strategy execution.
+        self.execution = 'execution'
+
+        # Risk profile.
+        self.risk_profile = '{0}/risk_profile'.format(self.execution)
+        self.check = '{0}/check'.format(self.risk_profile)
+
+        # Strategy execution function.
+        self.function = '{0}/function'.format(self.execution)
+        self.parameter = '{0}/parameter'.format(self.function)
 
 
 Constants = Constants()

@@ -10,7 +10,7 @@ from library.interfaces.sql_database import initiate_database, Database
 from library.utilities.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, \
     copy_file, get_xml_element_attribute
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
-from library.utilities.strategy import parse_strategy_from_xml
+from library.utilities.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 
 NS = {
     'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
@@ -31,7 +31,7 @@ NS = {
 }
 
 
-def parse_cmdline_args():
+def parse_cmdline_args(app_name):
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
     parser.add_option('-r', '--root_path', dest="root_path")
@@ -40,24 +40,32 @@ def parse_cmdline_args():
     parser.add_option('-x', '--xml_file', dest="xml_file")
 
     options, args = parser.parse_args()
-    return {
+    return parse_configs_file({
+        "app_name": app_name,
         "environment": options.environment.lower(),
         "root_path": options.root_path,
         "config_file": options.config_file,
         "functions": options.functions,
         "xml_file": options.xml_file
-    }
+    })
 
 
 def main():
     # Parser on boarding tool parameters.
-    Constants.configs = parse_cmdline_args()
+    Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     # Which functions will be doe.
     if Constants.configs['functions']:
         functions = [f.lower() for f in Constants.configs['functions'].split(',')]
     else:
         functions = ['init_env', 'onboard_strat', 'cron_jobs']
+
+    if Constants.configs['xml_file']:
+        strategy_setup_dict = parse_strategy_setup_from_xml(Constants.configs['xml_file'])
+        strategy_dict = parse_strategy_from_xml(Constants.configs['xml_file'])
+    else:
+        strategy_setup_dict = None
+        strategy_dict = None
 
     if 'init_env' in functions:
         # Generate resource directories.
@@ -93,32 +101,27 @@ def main():
                                           })
 
     if 'onboard_strat' in functions:
-        if 'xml_file' not in Constants.configs:
+        if not strategy_setup_dict or not strategy_dict:
             raise Exception('XML file is required to on board a strategy.')
 
         # Initiate strategy if it does not exist.
-        strategy_dict = parse_strategy_from_xml(Constants.configs['xml_file'])
-        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
+        strategy = parse_strategy_from_xml(Constants.configs['xml_file'])
+        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy['name'])):
             # Add portfolio and strategy.
-            portfolio_weighting = float(strategy_dict['weighting'])
-            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), 'alpaca', portfolio_weighting)
-            add_strategy(db, strategy_dict['name'], portfolio_id)
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy['name']), strategy_setup_dict['cash'])
+            add_strategy(db, strategy['name'], portfolio_id)
 
-            # Add any assets (a bit hacky).
-            strategy = et.parse(Constants.configs['xml_file']).getroot()
-            portfolio = strategy.findall(Constants.xml.portfolio)[0]
-            for asset in portfolio.findall('asset'):
-                symbol = get_xml_element_attribute(asset, 'symbol')
-                add_assets(db, portfolio_id, symbol)
+            # Add any assets.
+            for asset in strategy_setup_dict['assets']:
+                add_assets(db, portfolio_id, asset['symbol'])
 
         # Copy XML file to strategy directory.
         environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])
-        environment_strategies_path = os.path.join(environment_path, 'strategies',
-                                                   os.path.basename(Constants.configs['xml_file']))
-        copy_file(Constants.configs['xml_file'], environment_strategies_path)
+        strategies_path = os.path.join(environment_path, 'strategies', os.path.basename(Constants.configs['xml_file']))
+        copy_file(Constants.configs['xml_file'], strategies_path)
 
     if 'cron_jobs' in functions:
-        if 'xml_file' not in Constants.configs:
+        if not strategy_setup_dict:
             raise Exception('XML file is required to add cron jobs.')
 
         # Only existing reset jobs when initialising the environment.
@@ -133,22 +136,20 @@ def main():
 
         # Create cron jobs from strategy schedule.
         strategy = et.parse(Constants.configs['xml_file']).getroot()
-        for job in strategy.findall(Constants.xml.job):
+        for job in strategy_setup_dict:
             # Extract details.
-            name = get_xml_element_attribute(job, 'name')
-            script = get_xml_element_attribute(job, 'script')
-            schedule = get_xml_element_attribute(job, 'schedule')
+            name = job['name']
+            script = job['script']
+            schedule = job['schedule']
 
             # Parse script arguments.
-            environment_path = get_environment_specific_path(Constants.configs['root_path'],
-                                                             Constants.configs['environment'])
-            environment_strategies_path = os.path.join(environment_path, 'strategies',
-                                                       os.path.basename(Constants.configs['xml_file']))
+            environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])
+            strategies_path = os.path.join(environment_path, 'strategies', os.path.basename(Constants.configs['xml_file']))
             script_args_template = app_configs['script_details'][script]['args']
             script_args = parse_wildcards(script_args_template, {'%e%': Constants.configs['environment'],
                                                                      '%j%': '{0}_scheduled'.format(name),
                                                                      '%r%': Constants.configs['root_path'],
-                                                                     '%x%': environment_strategies_path})
+                                                                     '%x%': strategies_path})
 
             # Generate command.
             command_template = [interpreter, os.path.join(code_path, '{0}.py'.format(script)), script_args]

@@ -34,6 +34,7 @@ def exchange_open():
 def market_data():
     # Returns a time series data for a ticker with provided symbol and within a given datetime range.
     # Cannot return as dict as element order is not guaranteed.
+    # TODO Offer multiple tickers using data loader.
 
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
