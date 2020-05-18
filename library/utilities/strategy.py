@@ -114,7 +114,7 @@ class Strategy:
                 before = required_data_set['before'] if 'before' in required_data_set else self.run_datetime
                 self.data_loader.load_tickers(required_data_set['symbol'], before, after)
         if self.data_loader.data:
-            Constants.log.info('Loaded {0} data sets.'.format(len(self.data_loader.data)))
+            Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
         else:
             Constants.log.info('No data sets loaded.')
 
@@ -195,7 +195,7 @@ def parse_strategy_from_xml(xml_path, return_object=False):
 
     # Extract function name.
     function = [t for t in root.findall(Constants.xml.function)][0]
-    function = get_xml_element_attribute(function, 'func', required=True)
+    function = get_xml_element_attribute(function, 'name', required=True)
 
     # Parse parameters. {key: value}
     parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
@@ -253,9 +253,5 @@ def parse_strategy_setup_from_xml(xml_path):
         'assets': assets
     }
 
-
-
-
-    return {}
 
 

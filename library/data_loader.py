@@ -16,6 +16,7 @@ class DataLoader:
 
     @staticmethod
     def _staleness(time_series, scope=1):
+        # TODO this is shit
         # Quantifies staleness
         #   time_series [(datetime, float)]
         #   Will return True if any value is the same as the next *scope* elements including itself.

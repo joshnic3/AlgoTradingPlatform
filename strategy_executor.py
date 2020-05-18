@@ -284,8 +284,7 @@ def main():
 
     # Log signals.
     Constants.log.info('Generated {0} valid signal(s).'.format(len(signals)))
-    for signal in signals:
-        Constants.log.info(str(signal))
+    Constants.log.info(', '.join([str(s) for s in signals]))
 
     # Initiate exchange.
     if Constants.configs['mode'] == 'simulate':

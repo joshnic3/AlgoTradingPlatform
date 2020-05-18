@@ -337,12 +337,9 @@
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/library/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/utilities/strategy.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/strategy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/regression_tester.py" beforeDir="false" afterPath="$PROJECT_DIR$/regression_tester.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/operations/check.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_internal/operations/check.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/pkg_resources/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/venv/lib/python3.7/site-packages/pip-19.0.3-py3.7.egg/pip/_vendor/pkg_resources/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -400,7 +397,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.web_service">
+  <component name="RunManager" selected="Python.strategy_batch">
     <configuration name="onboarding_tool" type="PythonConfigurationType" factoryName="Python">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -515,8 +512,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.web_service" />
         <item itemvalue="Python.tick_capture" />
+        <item itemvalue="Python.web_service" />
         <item itemvalue="Python.regression_tester" />
       </list>
     </recent_temporary>
@@ -571,11 +568,6 @@
           <url>file://$PROJECT_DIR$/library/utilities/strategy.py</url>
           <line>121</line>
           <option name="timeStamp" value="34" />
-        </line-breakpoint>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/web_service.py</url>
-          <line>152</line>
-          <option name="timeStamp" value="37" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>
