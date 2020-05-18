@@ -77,8 +77,9 @@ class TradeExecutor:
             return True
         return True
 
-    def propose_trades(self, strategy, signals, risk_profile):
-        # works fine for now as each run only processes one signal. And atm my strats will only buy/sell one asset.
+    def process_signals(self, signals, risk_profile):
+        # TODO Needs to log why signal was rejected.
+        # TODO only processes one signal. And atm my strats will only buy/sell one asset.
         self.sync_portfolio_with_exchange()
         trades = []
         for signal in signals:
@@ -274,7 +275,7 @@ def main():
     db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy.name.lower()))
 
     # Evaluate strategy,
-    signals = strategy.evaluate()
+    signals = strategy.generate_signals()
 
     if not signals:
         # Script cannot go any further from this point, but should not error.
@@ -304,7 +305,7 @@ def main():
     trade_executor = TradeExecutor(db, strategy.portfolio, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.propose_trades(strategy.name.lower(), signals, strategy.risk_profile)
+    proposed_trades = trade_executor.process_signals(signals, strategy.risk_profile)
 
     # Execute trades.
     job.update_phase('Executing_trades')

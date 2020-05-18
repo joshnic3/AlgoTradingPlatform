@@ -143,14 +143,14 @@ def portfolio():
             asset_dict = query_result_to_dict([asset], Constants.configs['tables']['algo_trading_platform']['assets'])[0]
             portfolio_dict['exposure'] += float(asset_dict['current_exposure'])
 
-        # Add 24hr PnL to portfolio data.
+        # Add 24hr PnL to portfolio data. TODO Limit should be placed on the query itself.
         twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
         valuations = []
         for row in historical_valuations_rows:
             if datetime.datetime.strptime(row[2], Constants.date_time_format) > twenty_four_hrs_ago:
                 valuations.append([row[2], row[3]])
         if len(valuations) > 1:
-            portfolio_dict['pnl'] = round(float(valuations[0][1]) - float(valuations[-1][1]), 2)
+            portfolio_dict['pnl'] = round(float(valuations[-1][1]) - float(valuations[0][1]), 2)
         else:
             portfolio_dict['pnl'] = '-'
 

@@ -161,7 +161,7 @@ class Strategy:
         # Return cleaned signals.
         return [signals_per_unique_symbol[signal] for signal in unique_symbols]
 
-    def evaluate(self):
+    def generate_signals(self):
         # load required data.
         self._load_required_data()
 

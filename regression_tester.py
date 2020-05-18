@@ -21,7 +21,7 @@ class RegressionTester:
     def run(self, run_datetime):
         # Evaluate signals.
         self.strategy.run_datetime = run_datetime
-        signals = self.strategy.evaluate()
+        signals = self.strategy.generate_signals()
         self.signals.append(signals)
 
         # Trade Executor Simulator
