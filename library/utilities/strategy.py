@@ -94,7 +94,7 @@ class StrategyContext:
 
 class Strategy:
 
-    def __init__(self, name, data_requirements, function, parameters, risk_profile):
+    def __init__(self, name, data_requirements, function, parameters, risk_profile, execution_options=None):
         self._data_requirements = data_requirements
         self._execution_function = function
         self._execution_parameters = parameters
@@ -105,6 +105,7 @@ class Strategy:
         self.portfolio = None
         self.data_loader = DataLoader()
         self.risk_profile = risk_profile
+        self.execution_options = execution_options
 
     def _load_required_data(self):
         # Load required data sets.
@@ -189,6 +190,11 @@ def parse_strategy_from_xml(xml_path, return_object=False):
     # Extract strategy name.
     strategy_name = get_xml_element_attribute(root, 'name').lower()
 
+    # Extract execution options.
+    execution_element = root.findall(Constants.xml.execution)[0]
+    execution_options_str = get_xml_element_attribute(execution_element, 'options')
+    execution_options = [o.lower() for o in execution_options_str.split(',')] if execution_options_str else None
+
     # Extract run time.
     run_datetime_str = get_xml_element_attribute(root, 'run_datetime', required=False)
     run_datetime = datetime.datetime.strftime(run_datetime_str, Constants.date_time_format) if run_datetime_str else datetime.datetime.now()
@@ -214,7 +220,8 @@ def parse_strategy_from_xml(xml_path, return_object=False):
     data_requirements = tickers
 
     if return_object:
-        return Strategy(strategy_name, data_requirements, function, parameters, risk_profile)
+        return Strategy(strategy_name, data_requirements, function, parameters, risk_profile,
+                        execution_options=execution_options)
     else:
         return {
             'name': strategy_name,
@@ -222,7 +229,8 @@ def parse_strategy_from_xml(xml_path, return_object=False):
             'function': function,
             'parameters': parameters,
             'risk_profile': risk_profile,
-            'data_requirements': data_requirements
+            'data_requirements': data_requirements,
+            'execution_options': execution_options
         }
 
 

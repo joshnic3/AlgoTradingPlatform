@@ -12,23 +12,9 @@ from library.utilities.file import add_dir, parse_configs_file, parse_wildcards,
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
 from library.utilities.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 
-NS = {
-    'XML_RISK_PROFILE_LABEL': 'execution/risk_profile',
-    'XML_CHECK_LABEL': 'execution/risk_profile/check',
-    'XML_CHECK_ATTRIBUTES': {
-        'NAME': 'name',
-        'THRESHOLD': 'threshold'
-    },
-    'XML_PARAMETER_LABEL': 'execution/function/parameter',
-    'XML_PARAMETER_ATTRIBUTES': {
-        'KEY': 'key',
-        'VALUE': 'value'
-    },
-    'XML_FUNCTION_LABEL': 'execution/function',
-    'XML_FUNCTION_ATTRIBUTES': {
-        'FUNC': 'func'
-    }
-}
+INITIATE_ENVIRONMENT = 'init_env'
+ON_BOARD_STRATEGIES = 'onboard_strat'
+SETUP_CRON_JOBS = 'cron_jobs'
 
 
 def parse_cmdline_args(app_name):
@@ -51,14 +37,15 @@ def parse_cmdline_args(app_name):
 
 
 def main():
+    function = [INITIATE_ENVIRONMENT, ON_BOARD_STRATEGIES, SETUP_CRON_JOBS]
     # Parser on boarding tool parameters.
     Constants.configs = parse_cmdline_args('algo_trading_platform')
 
     # Which functions will be doe.
     if Constants.configs['functions']:
-        functions = [f.lower() for f in Constants.configs['functions'].split(',')]
+        functions_to_do = [f.lower() for f in Constants.configs['functions'].split(',') if f in function]
     else:
-        functions = ['init_env', 'onboard_strat', 'cron_jobs']
+        functions_to_do = function
 
     if Constants.configs['xml_file']:
         strategy_setup_dict = parse_strategy_setup_from_xml(Constants.configs['xml_file'])
@@ -67,7 +54,7 @@ def main():
         strategy_setup_dict = None
         strategy_dict = None
 
-    if 'init_env' in functions:
+    if INITIATE_ENVIRONMENT in functions_to_do:
         # Generate resource directories.
         resource_directories = ['logs', 'data', 'configs', 'strategies']
         environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])
@@ -100,7 +87,7 @@ def main():
                                           'environment': Constants.configs['environment']
                                           })
 
-    if 'onboard_strat' in functions:
+    if ON_BOARD_STRATEGIES in functions_to_do:
         if not strategy_setup_dict or not strategy_dict:
             raise Exception('XML file is required to on board a strategy.')
 
@@ -119,12 +106,12 @@ def main():
         strategies_path = os.path.join(environment_path, 'strategies', '{0}.xml'.format(strategy_dict['name']))
         copy_file(Constants.configs['xml_file'], strategies_path)
 
-    if 'cron_jobs' in functions:
+    if SETUP_CRON_JOBS in functions_to_do:
         if not strategy_setup_dict or not strategy_dict:
             raise Exception('XML file is required to add cron jobs.')
 
         # Only existing reset jobs when initialising the environment.
-        reset = True if 'init_env' in functions else False
+        reset = True if INITIATE_ENVIRONMENT in functions_to_do else False
         interpreter = 'python3'
         code_path = '/home/robot/projects/AlgoTradingPlatform'
 

@@ -33,12 +33,35 @@ class TradeExecutor:
     def _get_order_data(self, order_id):
         return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
 
-    def calculate_exposure(self, symbol):
+    @staticmethod
+    def _meets_risk_profile(portfolio, risk_profile):
+        # Make sure we only sell what we have.
+        portfolio_meets_risk_profile = True
+        negative_units = [portfolio['assets'][a]['symbol'] for a in portfolio['assets'] if portfolio['assets'][a]['units'] < 0]
+        if negative_units:
+            Constants.log.warning('Not enough units of {0} held for trade.'.format(', '.join(negative_units)))
+            portfolio_meets_risk_profile = False
+
+        # Enforce exposure limit
+        if 'max_exposure' in risk_profile:
+            exposure = sum([portfolio['assets'][a]['current_exposure'] for a in portfolio['assets']])
+            exposure_overflow = exposure - float(risk_profile['max_exposure'])
+            if exposure_overflow > 0:
+                Constants.log.warning('Maximum exposure limit exceeded by {0}.'.format(abs(exposure_overflow)))
+                portfolio_meets_risk_profile = False
+
+        # if 'min_liquidity' in risk_profile:
+        #     return True
+
+        return portfolio_meets_risk_profile
+
+    def calculate_exposure(self, symbol, portfolio=None):
         # Assume exposure == maximum possible loss from current position.
-        # Get this from exchange?
+
+        portfolio = portfolio if portfolio else self.portfolio
         data = self.exchange.get_position(symbol)
         if data:
-            units = int(data['qty'])
+            units = portfolio['assets'][symbol]['units']
             current_value = float(data['current_price'])
             return units * current_value
         return 0.0
@@ -59,64 +82,45 @@ class TradeExecutor:
                 asset['units'] = int(position['qty'])
             else:
                 asset['units'] = 0
-                if Constants.log:
-                    Constants.log.warning('No position found on exchange for {0}'.format(asset['symbol']))
             asset['current_exposure'] = self.calculate_exposure(asset['symbol'])
 
-    def meets_risk_profile(self, proposed_trade, risk_profile):
-        # Only accounts for this signal, is not aware of other signals.
-        signal, symbol, no_of_units, target_price = proposed_trade
-        current_exposure = sum([float(self.portfolio['assets'][a]['current_exposure']) for a in self.portfolio['assets']])
+    def generate_trades_from_signals(self, signals, strategy):
+        # Generates trades from signals using the strategy's risk profile and and execution options.
 
-        if 'max_exposure' in risk_profile:
-            if signal == 'buy':
-                potential_exposure = current_exposure + (no_of_units * target_price)
-                if potential_exposure > float(risk_profile['max_exposure']):
-                    return False
-        if 'min_liquidity' in risk_profile:
-            return True
-        return True
-
-    def process_signals(self, signals, risk_profile):
-        # TODO Needs to log why signal was rejected.
-        # TODO only processes one signal. And atm my strats will only buy/sell one asset.
         self.sync_portfolio_with_exchange()
+        potential_portfolio = self.portfolio
         trades = []
         for signal in signals:
-            units = 1
-            good_trade = True
             if signal.signal != 'hold':
-                # Create trade tuple.
-                trade = (signal.signal, signal.symbol, units, signal.target_value)
+                # Decide how many units to trade using strategy options and portfolio data.
+                if 'auto_exposure' in strategy.execution_options:
+                    # Units to buy/sell could be varied to balance exposure.
+                    # Could sell units if exposure limit is exceeded
+                    pass
+                else:
+                    units = 1
 
-                # Check symbol is in portfolio.
-                if good_trade and signal.symbol not in self.portfolio['assets']:
-                    # Asset not found in portfolio.
-                    good_trade = False
+                # Make potential portfolio changes for sell order.
+                # TODO may need to consider exchange commissions here.
+                if signal.signal == 'sell':
+                    potential_portfolio['cash'] += units * signal.target_value
+                    potential_portfolio['assets'][signal.symbol]['units'] -= units
 
-                # Check portfolio has enough units to sell.
-                if good_trade and signal.signal == 'sell':
-                    units_held = self.portfolio['assets'][signal.symbol]['units']
-                    if units_held - units < 0:
-                        # Don't sell assets you don't have.
-                        good_trade = False
+                # Make potential portfolio changes for buy order.
+                if signal.signal == 'buy':
+                    potential_portfolio['cash'] -= units * signal.target_value
+                    potential_portfolio['assets'][signal.symbol]['units'] += units
 
-                # Check portfolio has sufficient capital.
-                if good_trade and signal.signal == 'buy':
-                    # Calculate required capital.
-                    required_capital = units * signal.target_value
+                # Calculate total potential exposure.
+                potential_exposure = self.calculate_exposure(signal.symbol, potential_portfolio)
+                potential_portfolio['assets'][signal.symbol]['current_exposure'] = potential_exposure
 
-                    # Ensure portfolio's capital is up-to-date.
-                    if required_capital > float(self.portfolio['cash']):
-                        # Raise Required capital has exceeded limits.
-                        good_trade = False
+                # Only append trade if current state of the potential meets the strategy's risk profile.
+                if self._meets_risk_profile(potential_portfolio, strategy.risk_profile):
+                    trades.append((signal.signal, signal.symbol, units, signal.target_value))
 
-                # Check trade satisfies risk requirements.
-                if good_trade and (not self.meets_risk_profile(trade, risk_profile)):
-                    good_trade = False
-
-                if good_trade:
-                    trades.append(trade)
+        if trades:
+            Constants.log.info('{0} trade(s) passed risk checks.'.format(len(trades)))
         return trades
 
     def execute_trades(self, requested_trades):
@@ -304,7 +308,7 @@ def main():
     trade_executor = TradeExecutor(db, strategy.portfolio, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.process_signals(signals, strategy.risk_profile)
+    proposed_trades = trade_executor.generate_trades_from_signals(signals, strategy)
 
     # Execute trades.
     job.update_phase('Executing_trades')
