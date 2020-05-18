@@ -35,6 +35,8 @@ class TradeExecutor:
 
     @staticmethod
     def _meets_risk_profile(portfolio, risk_profile):
+        # Return True if current state of the potential portfolio meets the strategy's risk profile.
+
         # Make sure we only sell what we have.
         portfolio_meets_risk_profile = True
         negative_units = [portfolio['assets'][a]['symbol'] for a in portfolio['assets'] if portfolio['assets'][a]['units'] < 0]
@@ -96,7 +98,7 @@ class TradeExecutor:
                 if 'auto_exposure' in strategy.execution_options:
                     # Units to buy/sell could be varied to balance exposure.
                     # Could sell units if exposure limit is exceeded
-                    pass
+                    units = 1
                 else:
                     units = 1
 
@@ -115,12 +117,12 @@ class TradeExecutor:
                 potential_exposure = self.calculate_exposure(signal.symbol, potential_portfolio)
                 potential_portfolio['assets'][signal.symbol]['current_exposure'] = potential_exposure
 
-                # Only append trade if current state of the potential meets the strategy's risk profile.
+                # Only append trade if current state of the potential portfolio meets the strategy's risk profile.
                 if self._meets_risk_profile(potential_portfolio, strategy.risk_profile):
                     trades.append((signal.signal, signal.symbol, units, signal.target_value))
 
         if trades:
-            Constants.log.info('{0} trade(s) passed risk checks.'.format(len(trades)))
+            Constants.log.info('Generated {0} trade(s) from {1} signals.'.format(len(trades), len(signals)))
         return trades
 
     def execute_trades(self, requested_trades):
@@ -201,32 +203,6 @@ class TradeExecutor:
             ])
 
 
-def generate_risk_profile(db, strategy, risk_appetite=1.0):
-    # Returns risk profile, dict of factor: values.
-    risk_profile = {}
-    # Get risk profile for strategy.
-    condition = 'name="{0}"'.format(strategy)
-    risk_profile_id = db.get_one_row('strategies', condition)[2]
-    condition = 'id="{0}"'.format(risk_profile_id)
-    headers = [h[1] for h in db.execute_sql('PRAGMA table_info(risk_profiles);')]
-    risk_profile_row = [float(v) for v in db.get_one_row('risk_profiles', condition)]
-
-    # Package risk profile into a dictionary.
-    risk_profile_dict = dict(zip(headers[1:], risk_profile_row[1:]))
-    for name in risk_profile_dict:
-        if 'max' in name:
-            risk_profile_dict[name] = risk_profile_dict[name] * risk_appetite
-        if 'min' in name:
-            if risk_appetite > 1:
-                multiplier = 1 - (risk_appetite - 1)
-            else:
-                multiplier = (1 - risk_appetite) + 1
-            risk_profile_dict[name] = risk_profile_dict[name] * multiplier
-
-    risk_profile[strategy] = risk_profile_dict
-    return risk_profile
-
-
 def parse_cmdline_args(app_name):
     parser = optparse.OptionParser()
     parser.add_option('-e', '--environment', dest="environment")
@@ -276,6 +252,7 @@ def main():
     # Parse strategy xml.
     strategy = parse_strategy_from_xml(Constants.configs['xml_path'], return_object=True)
     strategy.portfolio = db.get_one_row('strategies', 'name="{0}"'.format(strategy.name.lower()))[2]
+    Constants.log.info("Strategy portfolio: {0}".format(strategy.portfolio))
     db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy.name.lower()))
 
     # Evaluate strategy,
@@ -309,6 +286,10 @@ def main():
 
     # Prepare trades.
     proposed_trades = trade_executor.generate_trades_from_signals(signals, strategy)
+    if not proposed_trades:
+        # Script cannot go any further from this point, but should not error.
+        job.finished(condition='no proposed trades')
+        return 2
 
     # Execute trades.
     job.update_phase('Executing_trades')
@@ -323,7 +304,6 @@ def main():
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
-
     job.finished()
 
 

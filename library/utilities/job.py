@@ -65,7 +65,7 @@ class Job:
         if condition is None:
             self.update_phase('TERMINATED_SUCCESSFULLY')
         else:
-            Constants.log.warning('Job finished early. condition: "{0}"'.format(condition))
+            Constants.log.warning('Job finished early with condition: "{0}"'.format(condition))
             self.update_phase('TERMINATED_{0}'.format(condition))
 
         start_time = self._db.get_one_row('phases', 'job_id="{0}" AND name="INITIATED"'.format(self.id))[2]
