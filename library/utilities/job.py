@@ -30,7 +30,7 @@ def is_script_new(db, script_name):
 class Job:
     # Maybe add a job phase table.
 
-    def __init__(self):
+    def __init__(self, log_path=None):
         self.name = Constants.configs['job_name'] if Constants.configs['job_name'] else Constants.configs['script_name']
         self.id = str(abs(hash(self.name + datetime.datetime.now().strftime(Constants.date_time_format))))
         self.script = Constants.configs['script_name']
@@ -40,7 +40,6 @@ class Job:
 
         self._version = Constants.configs['version']
 
-        log_path = get_log_file_path(Constants.configs['logs_root_path'], job_name=self.name)
         self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, log_path, None])
         self.update_phase("INITIATED")
 

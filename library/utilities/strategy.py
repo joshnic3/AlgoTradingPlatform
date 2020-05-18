@@ -94,14 +94,14 @@ class StrategyContext:
 
 class Strategy:
 
-    def __init__(self, name, data_requirements, function, parameters, risk_profile, run_datetime=None, live_data_source=None):
+    def __init__(self, name, data_requirements, function, parameters, risk_profile):
         self._data_requirements = data_requirements
         self._execution_function = function
         self._execution_parameters = parameters
-        self._live_data_source = live_data_source
+        self._live_data_source = None
 
         self.name = name
-        self.run_datetime = run_datetime if run_datetime else datetime.datetime.now()
+        self.run_datetime = datetime.datetime.now()
         self.portfolio = None
         self.data_loader = DataLoader()
         self.risk_profile = risk_profile

@@ -45,10 +45,9 @@ class TradeExecutor:
 
     def sync_portfolio_with_exchange(self):
         # Sync weighted cash value for strategy portfolio.
-        weighting = float(self._db.get_one_row('portfolios', 'id="{0}"'.format(self.portfolio['id']))[3])
         cash = self.exchange.get_cash()
         if cash:
-            self.portfolio['cash'] = cash * weighting
+            self.portfolio['cash'] = cash
         else:
             raise Exception('Could not sync portfolio with exchange.')
 
@@ -266,7 +265,7 @@ def main():
     db.log()
 
     # Initiate Job
-    job = Job()
+    job = Job(log_path)
     job.log()
 
     # Parse strategy xml.
