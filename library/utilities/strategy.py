@@ -100,7 +100,7 @@ class Strategy:
         self._execution_parameters = parameters
         self._live_data_source = None
 
-        self.name = name
+        self.name = name.lower()
         self.run_datetime = datetime.datetime.now()
         self.portfolio = None
         self.data_loader = DataLoader()

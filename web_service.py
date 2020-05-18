@@ -137,12 +137,6 @@ def portfolio():
             else:
                 portfolio_dict['value'] = '-'
 
-        # Calculate total exposure.
-        portfolio_dict['exposure'] = 0
-        for asset in db.query_table('assets', 'portfolio_id="{0}"'.format(params['id'])):
-            asset_dict = query_result_to_dict([asset], Constants.configs['tables']['algo_trading_platform']['assets'])[0]
-            portfolio_dict['exposure'] += float(asset_dict['current_exposure'])
-
         # Add 24hr PnL to portfolio data. TODO Limit should be placed on the query itself.
         twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
         valuations = []

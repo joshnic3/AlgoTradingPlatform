@@ -105,11 +105,10 @@ def main():
             raise Exception('XML file is required to on board a strategy.')
 
         # Initiate strategy if it does not exist.
-        strategy = parse_strategy_from_xml(Constants.configs['xml_file'])
-        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy['name'])):
+        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
             # Add portfolio and strategy.
-            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy['name']), strategy_setup_dict['cash'])
-            add_strategy(db, strategy['name'], portfolio_id)
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), strategy_setup_dict['cash'])
+            add_strategy(db, strategy_dict['name'], portfolio_id)
 
             # Add any assets.
             for asset in strategy_setup_dict['assets']:
@@ -117,17 +116,17 @@ def main():
 
         # Copy XML file to strategy directory.
         environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])
-        strategies_path = os.path.join(environment_path, 'strategies', os.path.basename(Constants.configs['xml_file']))
+        strategies_path = os.path.join(environment_path, 'strategies', '{0}.xml'.format(strategy_dict['name']))
         copy_file(Constants.configs['xml_file'], strategies_path)
 
     if 'cron_jobs' in functions:
-        if not strategy_setup_dict:
+        if not strategy_setup_dict or not strategy_dict:
             raise Exception('XML file is required to add cron jobs.')
 
         # Only existing reset jobs when initialising the environment.
         reset = True if 'init_env' in functions else False
         interpreter = 'python3'
-        code_path = '$ATP'
+        code_path = '/home/robot/projects/AlgoTradingPlatform'
 
         # Initiate cron object.
         cron = CronTab(user=os.getlogin())
@@ -144,7 +143,7 @@ def main():
 
             # Parse script arguments.
             environment_path = get_environment_specific_path(Constants.configs['root_path'], Constants.configs['environment'])
-            strategies_path = os.path.join(environment_path, 'strategies', os.path.basename(Constants.configs['xml_file']))
+            strategies_path = os.path.join(environment_path, 'strategies', '{0}.xml'.format(strategy_dict['name']))
             script_args_template = app_configs['script_details'][script]['args']
             script_args = parse_wildcards(script_args_template, {'%e%': Constants.configs['environment'],
                                                                      '%j%': '{0}_scheduled'.format(name),

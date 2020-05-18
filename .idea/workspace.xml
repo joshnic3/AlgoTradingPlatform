@@ -337,9 +337,9 @@
       <change beforePath="$PROJECT_DIR$/../drive/configs/data_loader_config.json" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../drive/data/dev/algo_trading_platform.db" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/library/data_loader.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/data_loader.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/library/utilities/strategy.py" beforeDir="false" afterPath="$PROJECT_DIR$/library/utilities/strategy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/strategy_executor.py" beforeDir="false" afterPath="$PROJECT_DIR$/strategy_executor.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/onboarding_tool.py" beforeDir="false" afterPath="$PROJECT_DIR$/onboarding_tool.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/web_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/web_service.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -397,7 +397,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="Python.strategy_batch">
+  <component name="RunManager" selected="Python.onboarding_tool">
     <configuration name="onboarding_tool" type="PythonConfigurationType" factoryName="Python">
       <module name="repo" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -512,8 +512,8 @@
     </list>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.tick_capture" />
         <item itemvalue="Python.web_service" />
+        <item itemvalue="Python.tick_capture" />
         <item itemvalue="Python.regression_tester" />
       </list>
     </recent_temporary>
@@ -559,11 +559,6 @@
   <component name="XDebuggerManager">
     <breakpoint-manager>
       <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/library/utilities/strategy.py</url>
-          <line>258</line>
-          <option name="timeStamp" value="5" />
-        </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/library/utilities/strategy.py</url>
           <line>121</line>
