@@ -6,13 +6,11 @@ import time
 
 from library.bootstrap import Constants
 from library.interfaces.exchange import AlpacaInterface
-from library.interfaces.market_data import TickerDataSource
 from library.interfaces.sql_database import Database, generate_unique_id
 from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
-from library.utilities.strategy import parse_strategy_from_xml, Signal
-from library.utilities.portfolio import Portfolio
+from library.strategy import parse_strategy_from_xml, Signal, Portfolio
 
 
 class TradeExecutor:
@@ -102,10 +100,9 @@ class TradeExecutor:
         for trade in requested_trades:
             signal, symbol, units, target_value = trade
             if signal == Signal.SELL:
-                executed_trade_id = self.exchange.ask(symbol, units)
+                executed_trade_ids.append(self.exchange.ask(symbol, units))
             if signal == Signal.BUY:
-                executed_trade_id = self.exchange.bid(symbol, units)
-            executed_trade_ids.append(executed_trade_id)
+                executed_trade_ids.append(self.exchange.bid(symbol, units))
         return executed_trade_ids
 
     def process_executed_trades(self, executed_trade_ids, log):
@@ -120,14 +117,10 @@ class TradeExecutor:
                 data = self._get_order_data(order_id)
                 status = data['status']
 
-            # Catches bad trades.
-            trade = None
-
             # Create order tuple with trade results.
             if status == 'filled':
                 trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
 
-            if trade:
                 # Update portfolio capital.
                 change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == Signal.SELL else -1
                 self.portfolio[Portfolio.CASH] += change_in_capital

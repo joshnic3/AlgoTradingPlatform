@@ -8,9 +8,9 @@ from crontab import CronTab
 from library.bootstrap import Constants
 from library.interfaces.sql_database import initiate_database, Database
 from library.utilities.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, \
-    copy_file, get_xml_element_attribute
+    copy_file
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
-from library.utilities.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
+from library.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 
 INITIATE_ENVIRONMENT = 'init_env'
 ON_BOARD_STRATEGIES = 'onboard_strat'

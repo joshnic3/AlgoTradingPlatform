@@ -93,8 +93,7 @@ def strategies():
     return response(200, all_rows_as_dict)
 
 
-
-
+# TODO use portfolio class.
 @app.route('/portfolio')
 def portfolio():
     # Returns portfolio row as dictionary for provided portfolio id.

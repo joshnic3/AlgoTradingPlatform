@@ -1,4 +1,4 @@
-from library.utilities.strategy import parse_strategy_from_xml
+from library.strategy import parse_strategy_from_xml
 import datetime
 from library.bootstrap import Constants
 from library.utilities.log import get_log_file_path, setup_log, log_configs
