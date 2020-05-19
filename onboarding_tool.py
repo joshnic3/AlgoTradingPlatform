@@ -26,14 +26,14 @@ def parse_cmdline_args(app_name):
     parser.add_option('-x', '--xml_file', dest="xml_file")
 
     options, args = parser.parse_args()
-    return parse_configs_file({
+    return {
         "app_name": app_name,
         "environment": options.environment.lower(),
         "root_path": options.root_path,
         "config_file": options.config_file,
         "functions": options.functions,
         "xml_file": options.xml_file
-    })
+    }
 
 
 def main():
@@ -47,12 +47,7 @@ def main():
     else:
         functions_to_do = function
 
-    if Constants.configs['xml_file']:
-        strategy_setup_dict = parse_strategy_setup_from_xml(Constants.configs['xml_file'])
-        strategy_dict = parse_strategy_from_xml(Constants.configs['xml_file'])
-    else:
-        strategy_setup_dict = None
-        strategy_dict = None
+
 
     if INITIATE_ENVIRONMENT in functions_to_do:
         # Generate resource directories.
@@ -86,6 +81,13 @@ def main():
                                           'app_name': 'algo_trading_platform',
                                           'environment': Constants.configs['environment']
                                           })
+
+    if Constants.configs['xml_file']:
+        strategy_setup_dict = parse_strategy_setup_from_xml(Constants.configs['xml_file'])
+        strategy_dict = parse_strategy_from_xml(Constants.configs['xml_file'])
+    else:
+        strategy_setup_dict = None
+        strategy_dict = None
 
     if ON_BOARD_STRATEGIES in functions_to_do:
         if not strategy_setup_dict or not strategy_dict:

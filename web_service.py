@@ -12,7 +12,7 @@ from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new
-from strategy_executor import TradeExecutor
+from library.strategy import Portfolio
 
 app = Flask(__name__)
 
@@ -168,14 +168,10 @@ def assets():
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
-        # Needs abstracting out, but ok like this for now. This takes time so look at caching it.
-        # TODO FIX THIS
         exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
-        trade_executor = TradeExecutor(db, params['id'], exchange)
-        trade_executor.sync_portfolio_with_exchange()
-        if trade_executor is None:
-            return response(400, 'Portfolio does not exist.')
-        return response(200, trade_executor.portfolio['assets'])
+        portfolio_obj = Portfolio(params['id'])
+        portfolio_obj.sync_with_exchange(exchange)
+        return response(200, portfolio_obj.assets)
 
     return response(401, 'Portfolio id required.')
 
