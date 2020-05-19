@@ -70,13 +70,16 @@ class DataLoader:
                 self.warnings[self.type] = {symbol: warnings}
 
     def load_latest_ticker(self, symbol, now=None):
+        self.type = DataLoader.LATEST_TICKER
         now = now if now else datetime.datetime.now()
 
         # Read tick from database.
         condition = 'symbol="{0}"'.format(symbol)
         tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), value')
-        self.type = DataLoader.LATEST_TICKER
-        self.data[self.type] = {symbol: float(tick_rows[1])}
+        if tick_rows:
+            self.data[self.type] = {symbol: float(tick_rows[1])}
+        else:
+            self.warnings[self.type] = {symbol: 'no_ticks_{0}'.format(symbol.lower())}
 
 
 

@@ -63,7 +63,7 @@ class TradeExecutor:
         potential_portfolio = self.portfolio
         trades = []
         for signal in signals:
-            if signal.signal != Signal.hold:
+            if signal.signal != Signal.HOLD:
                 # Decide how many units to trade using strategy options and portfolio data.
                 if exposure_manager:
                     # units = exposure_manager.suggest_units_to_trade(signal)
@@ -209,8 +209,7 @@ def main():
         return 2
 
     # Log signals.
-    Constants.log.info('Generated {0} valid signal(s).'.format(len(signals)))
-    Constants.log.info(', '.join([str(s) for s in signals]))
+    Constants.log.info('Generated {0} valid signal(s): {1}.'.format(len(signals), ', '.join([str(s) for s in signals])))
 
     # Initiate exchange.
     if Constants.configs['mode'] == 'simulate':

@@ -121,11 +121,10 @@ class Portfolio:
 
     def calculate_exposure(self, symbol, portfolio=None):
         # Assume exposure == maximum possible loss from current position.
-        assets = portfolio.assets if portfolio else self.assets
         data_loader = DataLoader()
         data_loader.load_latest_ticker(symbol)
-        units = assets[symbol][Portfolio.UNITS]
-        return units * data_loader.data[DataLoader.LATEST_TICKER][symbol]
+        assets = portfolio.assets if portfolio else self.assets
+        return assets[symbol][Portfolio.UNITS] * data_loader.data[DataLoader.LATEST_TICKER][symbol]
 
     def update_db(self):
         # Update portfolio cash.
@@ -142,6 +141,7 @@ class Portfolio:
             self._db.update_value(Portfolio.ASSETS, Portfolio.EXPOSURE, self.calculate_exposure(symbol), condition)
 
     def sync_with_exchange(self, exchange):
+        # Not sure this works, atleast not when called from webservice/
         # Sync weighted cash value for strategy portfolio.
         cash = exchange.get_cash()
         if cash:
@@ -151,12 +151,13 @@ class Portfolio:
 
         # Sync with exchange too.
         for symbol in self.assets:
-            position = exchange.get_position(symbol=self.assets[symbol])
+            asset = self.assets[symbol]
+            position = exchange.get_position(symbol=asset[Portfolio.SYMBOL])
             if position and 'qty' in position:
-                self.assets[symbol][Portfolio.UNITS] = int(position['qty'])
+                asset[Portfolio.UNITS] = int(position['qty'])
             else:
-                self.assets[symbol][Portfolio.UNITS] = 0
-            self.assets[symbol][Portfolio.EXPOSURE] = self.calculate_exposure(self.assets[symbol][Portfolio.SYMBOL])
+                asset[Portfolio.UNITS] = 0
+            asset[Portfolio.EXPOSURE] = self.calculate_exposure(asset[Portfolio.SYMBOL])
 
     def valuate(self):
         total_asset_value = sum([self.calculate_exposure(a[Portfolio.SYMBOL]) for a in self.assets])
