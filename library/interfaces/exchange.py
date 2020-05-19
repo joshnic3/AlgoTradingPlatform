@@ -1,7 +1,6 @@
 import json
 import requests
 
-from library.bootstrap import Constants
 
 
 class AlpacaInterface:
@@ -19,7 +18,7 @@ class AlpacaInterface:
         }
 
     def _request_get(self, url, params=None, data=None, handle_error=False):
-        # Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
+        # TODO Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
         results = requests.get(url, data=data, params=params, headers=self.headers)
         if results.status_code == 200:
             return json.loads(results.content.decode('utf-8'))

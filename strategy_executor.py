@@ -11,6 +11,7 @@ from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
 from library.strategy import parse_strategy_from_xml, Signal, Portfolio
+from library.exposure_manager import ExposureManager
 
 
 class TradeExecutor:
@@ -53,11 +54,13 @@ class TradeExecutor:
     def generate_trades_from_signals(self, signals):
         # Generates trades from signals using the strategy's risk profile and and execution options.
 
-        # Manage exposure.
-        # Units to buy/sell could be varied to balance exposure.
-        # Could sell units if exposure limit is exceeded
-        # exposure_manager = ExposureManager(signals, strategy) if 'manage_exposure' in strategy.execution_options else None
-        exposure_manager = None
+        default_no_of_units = 1
+
+        # Manage exposure if specified in stratgey execution options.
+        if 'manage_exposure' in self.strategy.execution_options:
+            exposure_manager = ExposureManager(self.strategy, default_no_of_units)
+        else:
+            exposure_manager = None
 
         self.portfolio.sync_with_exchange(self.exchange)
         potential_portfolio = self.portfolio
@@ -65,14 +68,10 @@ class TradeExecutor:
         for signal in signals:
             if signal.signal != Signal.HOLD:
                 # Decide how many units to trade using strategy options and portfolio data.
-                if exposure_manager:
-                    # units = exposure_manager.suggest_units_to_trade(signal)
-                    units = 1
-                else:
-                    units = 1
+                units = exposure_manager.suggest_units_to_trade(signal) if exposure_manager else default_no_of_units
 
                 # Make potential portfolio changes for sell order.
-                # TODO may need to consider exchange commissions here.
+                # TODO May need to consider exchange commissions here.
                 if signal.signal == Signal.SELL:
                     potential_portfolio.cash += units * signal.target_value
                     potential_portfolio.assets[signal.symbol][Portfolio.UNITS] -= units
@@ -113,17 +112,17 @@ class TradeExecutor:
 
             # Wait for order to fill.
             while status == 'new' or status == 'partially_filled':
-                time.sleep(1)
+                time.sleep(0.5)
                 data = self._get_order_data(order_id)
                 status = data['status']
 
             # Create order tuple with trade results.
             if status == 'filled':
-                trade = (data['symbol'], int(data['filled_qty']), float(data['filled_avg_price']))
+                trade = (data[Portfolio.SYMBOL], int(data['filled_qty']), float(data['filled_avg_price']))
 
                 # Update portfolio capital.
                 change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == Signal.SELL else -1
-                self.portfolio[Portfolio.CASH] += change_in_capital
+                self.portfolio.cash += change_in_capital
 
                 # Update portfolio assets.
                 change_in_units = int(trade[1]) * 1 if data['side'] == Signal.BUY else -1
@@ -139,14 +138,16 @@ class TradeExecutor:
         self.portfolio.sync_with_exchange(self.exchange)
         self.portfolio.update_db()
 
+        # Record run value.
         if append_to_historical_values:
             now = datetime.datetime.now()
             self._db.insert_row('historical_portfolio_valuations', [
                 generate_unique_id(now),
                 self.portfolio.id,
-                now.strftime('%Y%m%d%H%M%S'),
+                now.strftime(Constants.date_time_format),
                 self.portfolio.valuate()
             ])
+        Constants.log.info('Updated portfolio and recorded value.')
 
 
 def parse_cmdline_args(app_name):
@@ -231,7 +232,8 @@ def main():
     # Prepare trades.
     proposed_trades = trade_executor.generate_trades_from_signals(signals)
     if not proposed_trades:
-        # Script cannot go any further from this point, but should not error.
+        # Script cannot go any further from this point, but should not error. Should still update porfolio though.
+        trade_executor.update_portfolio_db()
         job.finished(condition='no proposed trades')
         return 2
 

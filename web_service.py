@@ -117,24 +117,15 @@ def portfolio():
 
         portfolio_dict = query_result_to_dict([portfolio_row], Constants.configs['tables']['algo_trading_platform']['portfolios'])[0]
 
-        # Add current and historical value to portfolio data.
-        historical_valuations_rows = db.query_table('historical_portfolio_valuations', 'portfolio_id="{0}"'.format(
-                    params['id']))
+        # Fetch portfolio data.
+        condition = 'portfolio_id="{0}"'.format(params['id'])
+        historical_valuations_rows = db.query_table('historical_portfolio_valuations', condition)
         historical_date_times = [r[2] for r in historical_valuations_rows]
         historical_values = [float(r[3]) for r in historical_valuations_rows]
 
-        historical_valuations = [historical_date_times, historical_values]
-        portfolio_dict['historical_valuations'] = historical_valuations
-        if len(historical_valuations) > 1:
-            if historical_values:
-                portfolio_dict['value'] = historical_values[-1]
-            else:
-                portfolio_dict['value'] = '-'
-        else:
-            if historical_values:
-                portfolio_dict['value'] = historical_valuations[0]
-            else:
-                portfolio_dict['value'] = '-'
+        # Add historical values time series and
+        portfolio_dict['historical_valuations'] = [historical_date_times, historical_values]
+        portfolio_dict['value'] = historical_values[-1] if historical_values else portfolio_dict['value'] = '-'
 
         # Add 24hr PnL to portfolio data. TODO Limit should be placed on the query itself.
         twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
@@ -160,9 +151,6 @@ def assets():
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
     if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
-
-    # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}

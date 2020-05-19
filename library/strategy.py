@@ -160,7 +160,7 @@ class Portfolio:
             asset[Portfolio.EXPOSURE] = self.calculate_exposure(asset[Portfolio.SYMBOL])
 
     def valuate(self):
-        total_asset_value = sum([self.calculate_exposure(a[Portfolio.SYMBOL]) for a in self.assets])
+        total_asset_value = sum([self.calculate_exposure(s) for s in self.assets])
         return total_asset_value + self.cash
 
 
