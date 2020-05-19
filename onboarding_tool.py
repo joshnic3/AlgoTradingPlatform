@@ -121,8 +121,7 @@ def main():
             cron.remove_all()
 
         # Create cron jobs from strategy schedule.
-        strategy = et.parse(Constants.configs['xml_file']).getroot()
-        for job in strategy_setup_dict:
+        for job in strategy_setup_dict['jobs']:
             # Extract details.
             name = job['name']
             script = job['script']

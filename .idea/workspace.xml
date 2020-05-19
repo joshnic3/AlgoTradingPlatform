@@ -518,11 +518,15 @@
       <method v="2" />
     </configuration>
     <list>
+      <item itemvalue="Python.data_loader" />
       <item itemvalue="Python.onboarding_tool" />
       <item itemvalue="Python.strategy_batch" />
       <item itemvalue="Python.tick_capture" />
       <item itemvalue="Python.web_service" />
+<<<<<<< Updated upstream
       <item itemvalue="Python.regression_tester" />
+=======
+>>>>>>> Stashed changes
     </list>
     <recent_temporary>
       <list>
