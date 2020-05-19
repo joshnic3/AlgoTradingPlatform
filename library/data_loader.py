@@ -1,12 +1,13 @@
 import datetime
-import xml.etree.ElementTree as et
 
 from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
-from library.utilities.file import get_xml_element_attribute
 
 
 class DataLoader:
+
+    TICKER = 'ticker'
+    LATEST_TICKER = 'latest_ticker'
 
     def __init__(self):
         self._db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
@@ -53,7 +54,7 @@ class DataLoader:
         return ticks_time_series, warnings
 
     def load_tickers(self, symbol, before, after):
-        self.type = 'ticker'
+        self.type = DataLoader.TICKER
         before = datetime.datetime.strftime(before, Constants.date_time_format)
         after = datetime.datetime.strftime(after, Constants.date_time_format)
         data, warnings = self._load_ticks(symbol, before, after)
@@ -68,6 +69,14 @@ class DataLoader:
             else:
                 self.warnings[self.type] = {symbol: warnings}
 
+    def load_latest_ticker(self, symbol, now=None):
+        now = now if now else datetime.datetime.now()
+
+        # Read tick from database.
+        condition = 'symbol="{0}"'.format(symbol)
+        tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), value')
+        self.type = DataLoader.LATEST_TICKER
+        self.data[self.type] = {symbol: float(tick_rows[1])}
 
 
 

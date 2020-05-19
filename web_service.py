@@ -170,6 +170,7 @@ def assets():
 
     if 'id' in params:
         # Needs abstracting out, but ok like this for now. This takes time so look at caching it.
+        # TODO FIX THIS
         exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
         trade_executor = TradeExecutor(db, params['id'], exchange)
         trade_executor.sync_portfolio_with_exchange()

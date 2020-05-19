@@ -42,8 +42,7 @@ class AlpacaInterface:
 
     def is_exchange_open(self):
         data = self._request_get(self.api['CLOCK'])
-        # return data['is_open']
-        return True
+        return data['is_open']
 
     def get_orders(self):
         return self._request_get(self.api['ORDERS'], params={"status": "all"})

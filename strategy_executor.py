@@ -11,24 +11,18 @@ from library.interfaces.sql_database import Database, generate_unique_id
 from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
-from library.utilities.strategy import parse_strategy_from_xml
+from library.utilities.strategy import parse_strategy_from_xml, Signal
+from library.utilities.portfolio import Portfolio
 
 
 class TradeExecutor:
 
-    def __init__(self, db, portfolio_id, exchange):
+    def __init__(self, db, strategy, exchange):
         self._db = db
 
-        # Load latest portfolio data.
-        portfolio_row = db.get_one_row('portfolios', 'id="{0}"'.format(portfolio_id))
-        asset_rows = db.query_table('assets', 'portfolio_id="{0}"'.format(portfolio_row[0]))
-
-        self.portfolio = {"id": portfolio_id,
-                          "assets": {r[2]: {'symbol': r[2], 'units': int(r[3]), 'current_exposure': float(r[4])} for r in asset_rows},
-                          "cash": float(portfolio_row[2])}
-        # This is the passed exchange object, currently has nothing to do with exchange_name.
+        self.strategy = strategy
+        self.portfolio = self.strategy.portfolio
         self.exchange = exchange
-        self._exchange_name = str(portfolio_row[1])
 
     def _get_order_data(self, order_id):
         return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
@@ -39,14 +33,15 @@ class TradeExecutor:
 
         # Make sure we only sell what we have.
         portfolio_meets_risk_profile = True
-        negative_units = [portfolio['assets'][a]['symbol'] for a in portfolio['assets'] if portfolio['assets'][a]['units'] < 0]
+        negative_units = [portfolio.assets[a][Portfolio.SYMBOL] for a in portfolio.assets if portfolio.assets[a][Portfolio.UNITS] < 0]
         if negative_units:
-            Constants.log.warning('Not enough units of {0} held for trade.'.format(', '.join(negative_units)))
+            assets = ', '.join(negative_units) if len(negative_units) > 1 else negative_units[0]
+            Constants.log.warning('Not enough units of {0} held for trade.'.format(assets))
             portfolio_meets_risk_profile = False
 
         # Enforce exposure limit
         if 'max_exposure' in risk_profile:
-            exposure = sum([portfolio['assets'][a]['current_exposure'] for a in portfolio['assets']])
+            exposure = sum([portfolio.assets[a][Portfolio.EXPOSURE] for a in portfolio.assets])
             exposure_overflow = exposure - float(risk_profile['max_exposure'])
             if exposure_overflow > 0:
                 Constants.log.warning('Maximum exposure limit exceeded by {0}.'.format(abs(exposure_overflow)))
@@ -57,68 +52,44 @@ class TradeExecutor:
 
         return portfolio_meets_risk_profile
 
-    def calculate_exposure(self, symbol, portfolio=None):
-        # Assume exposure == maximum possible loss from current position.
-
-        portfolio = portfolio if portfolio else self.portfolio
-        data = self.exchange.get_position(symbol)
-        if data:
-            units = portfolio['assets'][symbol]['units']
-            current_value = float(data['current_price'])
-            return units * current_value
-        return 0.0
-
-    def sync_portfolio_with_exchange(self):
-        # Sync weighted cash value for strategy portfolio.
-        cash = self.exchange.get_cash()
-        if cash:
-            self.portfolio['cash'] = cash
-        else:
-            raise Exception('Could not sync portfolio with exchange.')
-
-        # Sync with exchange too.
-        for symbol in self.portfolio['assets']:
-            asset = self.portfolio['assets'][symbol]
-            position = self.exchange.get_position(symbol=asset['symbol'])
-            if position and 'qty' in position:
-                asset['units'] = int(position['qty'])
-            else:
-                asset['units'] = 0
-            asset['current_exposure'] = self.calculate_exposure(asset['symbol'])
-
-    def generate_trades_from_signals(self, signals, strategy):
+    def generate_trades_from_signals(self, signals):
         # Generates trades from signals using the strategy's risk profile and and execution options.
 
-        self.sync_portfolio_with_exchange()
+        # Manage exposure.
+        # Units to buy/sell could be varied to balance exposure.
+        # Could sell units if exposure limit is exceeded
+        # exposure_manager = ExposureManager(signals, strategy) if 'manage_exposure' in strategy.execution_options else None
+        exposure_manager = None
+
+        self.portfolio.sync_with_exchange(self.exchange)
         potential_portfolio = self.portfolio
         trades = []
         for signal in signals:
-            if signal.signal != 'hold':
+            if signal.signal != Signal.hold:
                 # Decide how many units to trade using strategy options and portfolio data.
-                if 'auto_exposure' in strategy.execution_options:
-                    # Units to buy/sell could be varied to balance exposure.
-                    # Could sell units if exposure limit is exceeded
+                if exposure_manager:
+                    # units = exposure_manager.suggest_units_to_trade(signal)
                     units = 1
                 else:
                     units = 1
 
                 # Make potential portfolio changes for sell order.
                 # TODO may need to consider exchange commissions here.
-                if signal.signal == 'sell':
-                    potential_portfolio['cash'] += units * signal.target_value
-                    potential_portfolio['assets'][signal.symbol]['units'] -= units
+                if signal.signal == Signal.SELL:
+                    potential_portfolio.cash += units * signal.target_value
+                    potential_portfolio.assets[signal.symbol][Portfolio.UNITS] -= units
 
                 # Make potential portfolio changes for buy order.
-                if signal.signal == 'buy':
-                    potential_portfolio['cash'] -= units * signal.target_value
-                    potential_portfolio['assets'][signal.symbol]['units'] += units
+                if signal.signal == Signal.BUY:
+                    potential_portfolio.cash -= units * signal.target_value
+                    potential_portfolio.assets[signal.symbol][Portfolio.UNITS] += units
 
                 # Calculate total potential exposure.
-                potential_exposure = self.calculate_exposure(signal.symbol, potential_portfolio)
-                potential_portfolio['assets'][signal.symbol]['current_exposure'] = potential_exposure
+                potential_exposure = self.portfolio.calculate_exposure(signal.symbol, potential_portfolio)
+                potential_portfolio.assets[signal.symbol][Portfolio.EXPOSURE] = potential_exposure
 
                 # Only append trade if current state of the potential portfolio meets the strategy's risk profile.
-                if self._meets_risk_profile(potential_portfolio, strategy.risk_profile):
+                if self._meets_risk_profile(potential_portfolio, self.strategy.risk_profile):
                     trades.append((signal.signal, signal.symbol, units, signal.target_value))
 
         if trades:
@@ -130,9 +101,9 @@ class TradeExecutor:
         executed_trade_ids = []
         for trade in requested_trades:
             signal, symbol, units, target_value = trade
-            if signal == 'sell':
+            if signal == Signal.SELL:
                 executed_trade_id = self.exchange.ask(symbol, units)
-            if signal == 'buy':
+            if signal == Signal.BUY:
                 executed_trade_id = self.exchange.bid(symbol, units)
             executed_trade_ids.append(executed_trade_id)
         return executed_trade_ids
@@ -158,12 +129,12 @@ class TradeExecutor:
 
             if trade:
                 # Update portfolio capital.
-                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == 'sell' else -1
-                self.portfolio['cash'] += change_in_capital
+                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == Signal.SELL else -1
+                self.portfolio[Portfolio.CASH] += change_in_capital
 
                 # Update portfolio assets.
-                change_in_units = int(trade[1]) * 1 if data['side'] == 'buy' else -1
-                self.portfolio['assets'][data['symbol']]['units'] += change_in_units
+                change_in_units = int(trade[1]) * 1 if data['side'] == Signal.BUY else -1
+                self.portfolio.assets[data[Portfolio.SYMBOL]][Portfolio.UNITS] += change_in_units
 
                 # Add to processed trades list.
                 processed_trades.append(trade)
@@ -171,35 +142,17 @@ class TradeExecutor:
                 log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
         return processed_trades
 
-    def update_portfolio_db(self, ds, append_to_historical_values=True):
-        # Ensure capital is up-to-date with exchange.
-        self.sync_portfolio_with_exchange()
-
-        # Save to database.
-
-        # Add new row for portfolio with updated capital.
-        self._db.update_value('portfolios', 'cash', self.portfolio['cash'], 'id="{}"'.format(self.portfolio['id']))
-
-        # Update assets.
-        for symbol in self.portfolio['assets']:
-            units = int(self.portfolio['assets'][symbol]['units'])
-            self._db.update_value('assets', 'units', units, 'symbol="{}"'.format(symbol))
-
-            # Calculate and update exposure.
-            self._db.update_value('assets', 'current_exposure', self.calculate_exposure(symbol), 'symbol="{}"'.format(symbol))
+    def update_portfolio_db(self, append_to_historical_values=True):
+        self.portfolio.sync_with_exchange(self.exchange)
+        self.portfolio.update_db()
 
         if append_to_historical_values:
-            # Valuate portfolio and record in database.
-            tickers = ds.request_tickers([a for a in self.portfolio['assets']])
-            total_current_value_of_assets = sum([self.portfolio['assets'][asset]['units'] * float(tickers[asset])
-                                                 for asset in self.portfolio['assets']])
-            portfolio_value = self.portfolio['cash'] + total_current_value_of_assets
             now = datetime.datetime.now()
             self._db.insert_row('historical_portfolio_valuations', [
                 generate_unique_id(now),
-                self.portfolio['id'],
+                self.portfolio.id,
                 now.strftime('%Y%m%d%H%M%S'),
-                portfolio_value
+                self.portfolio.valuate()
             ])
 
 
@@ -251,8 +204,7 @@ def main():
 
     # Parse strategy xml.
     strategy = parse_strategy_from_xml(Constants.configs['xml_path'], return_object=True)
-    strategy.portfolio = db.get_one_row('strategies', 'name="{0}"'.format(strategy.name.lower()))[2]
-    Constants.log.info("Strategy portfolio: {0}".format(strategy.portfolio))
+    Constants.log.info("Strategy portfolio: {0}".format(strategy.portfolio.id))
     db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy.name.lower()))
 
     # Evaluate strategy,
@@ -282,10 +234,10 @@ def main():
 
     # Initiate trade executor.
     job.update_phase('Proposing_trades')
-    trade_executor = TradeExecutor(db, strategy.portfolio, exchange)
+    trade_executor = TradeExecutor(db, strategy, exchange)
 
     # Prepare trades.
-    proposed_trades = trade_executor.generate_trades_from_signals(signals, strategy)
+    proposed_trades = trade_executor.generate_trades_from_signals(signals)
     if not proposed_trades:
         # Script cannot go any further from this point, but should not error.
         job.finished(condition='no proposed trades')
@@ -300,7 +252,7 @@ def main():
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
 
     Constants.log.info('Updated portfolio in database.')
-    trade_executor.update_portfolio_db(TickerDataSource())
+    trade_executor.update_portfolio_db()
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))

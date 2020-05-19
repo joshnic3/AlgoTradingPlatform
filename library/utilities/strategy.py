@@ -6,10 +6,14 @@ from library.utilities.file import get_xml_element_attribute, get_xml_element_at
 import library.strategy_functions as strategy_functions
 from library.interfaces.sql_database import Database
 from library.data_loader import DataLoader
-from library.interfaces.market_data import TickerDataSource
+from library.utilities.portfolio import Portfolio
 
 
 class Signal:
+
+    HOLD = 'hold'
+    SELL = 'sell'
+    BUY = 'buy'
 
     def __init__(self, signal_id):
         self.id = signal_id
@@ -28,17 +32,17 @@ class Signal:
 
     def sell(self, symbol, price):
         self.symbol = symbol
-        self.signal = 'sell'
+        self.signal = Signal.SELL
         self.target_value = price
 
     def buy(self, symbol, price):
         self.symbol = symbol
-        self.signal = 'buy'
+        self.signal = Signal.BUY
         self.target_value = price
 
     def hold(self, symbol):
         self.symbol = symbol
-        self.signal = 'hold'
+        self.signal = Signal.HOLD
         self.target_value = None
 
 
@@ -58,13 +62,13 @@ class StrategyContext:
         # TODO Use a consistent hash, python hash function not suitable.
         return str(self.strategy_name + variable_name)
 
-    def add_signal(self, symbol, order_type='hold', target_value=None):
+    def add_signal(self, symbol, order_type=Signal.HOLD, target_value=None):
         signal = Signal(len(self.signals))
-        if order_type.lower() == 'hold':
+        if order_type.lower() == Signal.HOLD:
             signal.hold(symbol)
-        elif order_type.lower() == 'buy' and target_value:
+        elif order_type.lower() == Signal.BUY and target_value:
             signal.buy(symbol, target_value)
-        elif order_type.lower() == 'sell' and target_value:
+        elif order_type.lower() == Signal.SELL and target_value:
             signal.sell(symbol, target_value)
         else:
             raise Exception('Signal not valid.')
@@ -102,7 +106,12 @@ class Strategy:
 
         self.name = name.lower()
         self.run_datetime = datetime.datetime.now()
-        self.portfolio = None
+
+        # Load portfolio.
+        db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+        portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(self.name))[2]
+        self.portfolio = Portfolio(portfolio_id)
+
         self.data_loader = DataLoader()
         self.risk_profile = risk_profile
         self.execution_options = execution_options
@@ -110,7 +119,7 @@ class Strategy:
     def _load_required_data(self):
         # Load required data sets.
         for required_data_set in self._data_requirements:
-            if required_data_set['type'] == 'ticker':
+            if required_data_set['type'] == DataLoader.TICKER:
                 after = required_data_set['after'] if 'after' in required_data_set else datetime.datetime(1970, 1, 1, 0, 0, 0)
                 before = required_data_set['before'] if 'before' in required_data_set else self.run_datetime
                 self.data_loader.load_tickers(required_data_set['symbol'], before, after)
@@ -145,10 +154,10 @@ class Strategy:
             unanimous_signal = None if len(symbol_signals_set) > 1 else symbol_signals_set[0]
             if unanimous_signal:
                 target_values = [s.target_value for s in signals_per_unique_symbol[symbol]]
-                if unanimous_signal == 'buy':
+                if unanimous_signal == Signal.BUY:
                     # Buy for cheapest ask.
                     final_signal_index = target_values.index(min(target_values))
-                elif unanimous_signal == 'sell':
+                elif unanimous_signal == Signal.SELL:
                     # Sell to highest bid.
                     final_signal_index = target_values.index(max(target_values))
                 else:
@@ -216,7 +225,7 @@ def parse_strategy_from_xml(xml_path, return_object=False):
     ticker_attributes = ['symbol']
     tickers = [get_xml_element_attributes(t, require=ticker_attributes) for t in root.findall(Constants.xml.ticker)]
     for ticker in tickers:
-        ticker['type'] = 'ticker'
+        ticker['type'] = DataLoader.TICKER
     data_requirements = tickers
 
     if return_object:
