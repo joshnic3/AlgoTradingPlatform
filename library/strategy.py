@@ -185,11 +185,11 @@ class Strategy:
             context = StrategyContext(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
             parameters = self._execution_parameters
             signals = eval('strategy_functions.{0}(context,parameters)'.format(self._execution_function))
+            return self._clean_signals(signals)
         except Exception as error:
             signals = error
             Constants.log.error('Error evaluating strategy "{0}": {1}'.format(self.name, error))
-
-        return self._clean_signals(signals)
+            return None
 
 
 def parse_strategy_from_xml(xml_path, return_object=False, db=None):

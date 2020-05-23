@@ -1,4 +1,5 @@
 import datetime
+from statistics import mean
 
 
 def _get_latest_value(context, symbol):
@@ -25,8 +26,6 @@ def _time_minutes_ago(context, minutes):
 
 
 def basic(context, parameters):
-    from statistics import mean
-
     # Fetch static all data together.
     eight_hours_ago = _time_minutes_ago(context, 60*8)
     previous_values = _get_values_in_datetime_range(context, parameters['symbol'], eight_hours_ago, context.now)
@@ -48,7 +47,6 @@ def basic(context, parameters):
 
 
 def pairs(context, parameters):
-    from statistics import mean
 
     # Get all twaps for both symbols from the last hour.
     one_hour_ago = _time_minutes_ago(context, int(parameters['minutes_to_look_back']))

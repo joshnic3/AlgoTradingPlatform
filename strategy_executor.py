@@ -179,10 +179,15 @@ def main():
     # Evaluate strategy,
     signals = strategy.generate_signals()
 
+    if signals is None:
+        # There was a calculation error. This is fatal.
+        job.finished(condition='calculation error', status=Job.FAILED)
+        return Job.FAILED
+
     if not signals:
         # Script cannot go any further from this point, but should not error.
-        job.finished(condition='no valid signals', status=Job.WARNINGS)
-        return 2
+        job.finished(condition='no signals')
+        return Job.WARNINGS
 
     # Log signals.
     Constants.log.info('Generated {0} valid signal(s): {1}.'.format(len(signals), ', '.join([str(s) for s in signals])))
@@ -198,7 +203,7 @@ def main():
     if not exchange.is_exchange_open():
         # Script cannot go any further from this point, but should not error.
         job.finished(condition='exchange is closed', status=Job.WARNINGS)
-        return 2
+        return Job.WARNINGS
 
     # Initiate trade executor.
     job.update_phase('Proposing_trades')
@@ -209,8 +214,8 @@ def main():
     if not proposed_trades:
         # Script cannot go any further from this point, but should not error. Should still update porfolio though.
         trade_executor.update_portfolio_db()
-        job.finished(condition='no proposed trades', status=Job.WARNINGS)
-        return 2
+        job.finished(condition='no proposed trades')
+        return Job.WARNINGS
 
     # Execute trades.
     job.update_phase('Executing_trades')
@@ -223,7 +228,8 @@ def main():
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
-    job.finished(status=Job.SUCCESSFUL)
+    job.finished()
+    return Job.SUCCESSFUL
 
 
 if __name__ == "__main__":

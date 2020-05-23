@@ -49,13 +49,13 @@ class Job:
             job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.db_name]['jobs'])[0]
 
             # Read in job phase.
-            phase_row = self._db.query_table('phases', 'job_id="{0}"'.format(self.id))
+            phase_row = self._db.query_table('phases', 'job_id="{0}"'.format(job_dict['id']))
             phase_dict = query_result_to_dict(phase_row, Constants.configs['tables'][Constants.db_name]['phases'])[-1]
-            self.phase_name = phase_dict['name']
+            job_dict['phase_name'] = phase_dict['name']
 
         else:
-            # Add new job to database and start "initiated phase".
-            job_dict = self._create_job_dict()
+            # Create new job and add it to the database.
+            job_dict = self._create_job_dict(log_path)
             self._db.insert_row_from_dict('jobs', job_dict)
 
         # Set instance variables.
@@ -69,11 +69,12 @@ class Job:
         self.start_time = job_dict['start_time']
         self.phase_name = job_dict['phase_name']
 
+        # Initiate the job is no phase.
         if self.phase_name is None:
             self.update_phase(Job.FIRST_PHASE)
 
     @staticmethod
-    def _create_job_dict():
+    def _create_job_dict(log_path):
         if Constants.configs['job_name']:
             name = Constants.configs['job_name']
         else:
@@ -83,7 +84,7 @@ class Job:
             'name': name.lower(),
             'script': Constants.configs['script_name'],
             'version': Constants.configs['version'],
-            'log_path': None,
+            'log_path': log_path,
             'elapsed_time': None,
             'finish_state': None,
             'start_time': datetime.datetime.now().strftime(Constants.date_time_format),
@@ -107,7 +108,7 @@ class Job:
         phase_id = self._add_phase(self.phase_name)
         self._db.update_value('job', 'phase_id', phase_id, 'id="{0}"'.format(self.id))
 
-    def finished(self, status=None, condition=None):
+    def finished(self, status=SUCCESSFUL, condition=None):
         log_hr()
 
         # Update job phase.

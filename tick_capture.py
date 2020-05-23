@@ -65,6 +65,7 @@ def main():
     # Load data.
     job.update_phase('requesting data')
     ticker_data_source = TickerDataSource()
+    warnings = 0
     for tick in ticks:
         data_source_data = ticker_data_source.request_quote(tick['symbol'])
         if data_source_data:
@@ -84,8 +85,14 @@ def main():
         else:
             db.insert_row('data_warnings', [0, 'tick', 'no_data', tick['symbol']])
             Constants.log.info('Could not get data for ticker {0}'.format(tick['symbol']))
+            warnings += 1
 
-    job.finished(status=Job.SUCCESSFUL)
+    if warnings:
+        job.finished(status=Job.WARNINGS, condition='data warnings')
+        return Job.WARNINGS
+    else:
+        job.finished()
+        return Job.SUCCESSFUL
 
 
 if __name__ == "__main__":

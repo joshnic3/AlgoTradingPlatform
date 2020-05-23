@@ -184,12 +184,13 @@ def job():
 
     if 'id' in params:
         job_obj = Job(job_id=params['id'])
+        start_time_datetime = datetime.datetime.strptime(job_obj.start_time, Constants.date_time_format)
 
         data = {
             'name': job_obj.name,
             'script': job_obj.script,
             'log_path': job_obj.log_path,
-            'start_time': '',
+            'start_time': start_time_datetime.strftime(Constants.pp_time_format),
             'elapsed_time': job_obj.elapsed_time,
             'finish_state': job_obj.STATUS_MAP[int(job_obj.finish_state)],
             'version': '{0}{1}'.format(job_obj.version, ' (NEW)' if is_script_new(job_obj.script) else ''),
