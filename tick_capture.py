@@ -1,15 +1,16 @@
+import datetime
 import optparse
 import os
 import sys
-import xml.etree.ElementTree as et
 
 from library.bootstrap import Constants
-from library.interfaces.sql_database import Database
 from library.interfaces.market_data import TickerDataSource
-from library.utilities.file import parse_configs_file, get_xml_element_attribute
+from library.interfaces.sql_database import Database
+from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
-import datetime
+from library.utilities.xml import get_xml_root, get_xml_element_attribute
+from library.data_loader import MarketDataLoader
 
 
 def parse_cmdline_args(app_name):
@@ -41,18 +42,18 @@ def main():
     Constants.log = setup_log(log_path, True if Constants.configs['environment'] == 'dev' else False)
     log_configs(Constants, Constants.log)
 
-    # Setup db connection.
-    db = Database(Constants.configs['db_root_path'], 'market_data', Constants.configs['environment'])
+    # Setup connection to market data database, using the data loader's db name constant.
+    db = Database(name=MarketDataLoader.DB_NAME)
     db.log()
 
     # Initiate Job.
     job = Job()
     job.log()
 
-    # Load required symbols.
-    job.update_phase('loading requirements')
+    # Parse subscriptions file.
+    job.update_phase('parsing subscriptions')
     ticks = []
-    for tick_requirement in et.parse(Constants.configs['xml_file']).getroot():
+    for tick_requirement in get_xml_root(Constants.configs['xml_file']):
         symbol = get_xml_element_attribute(tick_requirement, 'symbol', required=True)
         stale_tick_limit = get_xml_element_attribute(tick_requirement, 'stale_tick_limit')
         if stale_tick_limit:
@@ -61,35 +62,30 @@ def main():
             ticks.append({'symbol': symbol.upper()})
     Constants.log.info('Loaded {0} required tickers.'.format(len(ticks)))
 
-    # Request data.
+    # Load data.
     job.update_phase('requesting data')
     ticker_data_source = TickerDataSource()
-    data_source_values = ticker_data_source.request_tickers([t['symbol'] for t in ticks])
-    Constants.log.info('Recorded {0} ticks.'.format(len(data_source_values)))
-
-    # Process ticks
-    job.update_phase('processing data')
     for tick in ticks:
-        if tick['symbol'] in data_source_values:
-            tick['value'] = data_source_values[tick['symbol']]
+        data_source_data = ticker_data_source.request_quote(tick['symbol'])
+        if data_source_data:
+            tick['price'] = data_source_data[TickerDataSource.PRICE]
+            tick['volume'] = data_source_data[TickerDataSource.VOLUME]
 
-        #  Test this is working.
-        if 'stale_tick_limit' in tick:
-            previous_ticks = db.query_table('ticks', 'symbol="{0}"'.format(tick['symbol']))[:tick['stale_tick_limit']+1]
-            if previous_ticks:
-                tick_value_to_compare = float(previous_ticks[0][3])
-                if tick_value_to_compare == tick['value']:
-                    db.insert_row('data_warnings', [0, 'tick', 'stale', tick['symbol']])
-                    print('stale data')
+            #  Test this is working.
+            if 'stale_tick_limit' in tick:
+                db.insert_row('data_warnings', [0, 'tick', 'stale_ticker', tick['symbol']])
 
-        # Save tick to database.
-        now = datetime.datetime.strftime(datetime.datetime.now(), Constants.date_time_format)
-        db.insert_row('ticks', [0, now, tick['symbol'], tick['value']])
+            # Save tick to database.
+            now = datetime.datetime.strftime(datetime.datetime.now(), Constants.date_time_format)
+            db.insert_row('ticks', [0, now, tick['symbol'], tick['price']])
 
-        # Log ticks.
-        Constants.log.info('sym: {0}, price: {1}'.format(tick['symbol'], tick['value']))
+            # Log ticks.
+            Constants.log.info('symbol: {0}, price: {1}, volume: {2}'.format(tick['symbol'], tick['price'], tick['volume']))
+        else:
+            db.insert_row('data_warnings', [0, 'tick', 'no_data', tick['symbol']])
+            Constants.log.info('Could not get data for ticker {0}'.format(tick['symbol']))
 
-    job.finished(status=0)
+    job.finished(status=Job.SUCCESSFUL)
 
 
 if __name__ == "__main__":

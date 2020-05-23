@@ -1,9 +1,8 @@
 import datetime
 
 from library.bootstrap import Constants
-from library.utilities.log import log_hr, get_log_file_path
-from library.interfaces.sql_database import Database
-import os
+from library.interfaces.sql_database import Database, query_result_to_dict
+from library.utilities.log import log_hr
 
 
 def get_run_count(db, script_name, version=None):
@@ -19,7 +18,8 @@ def get_run_count(db, script_name, version=None):
         return len([r for r in results])
 
 
-def is_script_new(db, script_name):
+def is_script_new(script_name):
+    db = Database()
     new_threshold = 50
     no_of_runs_on_latest_version = get_run_count(db, script_name, 'latest')
     if no_of_runs_on_latest_version < new_threshold:
@@ -28,32 +28,79 @@ def is_script_new(db, script_name):
 
 
 class Job:
-    # Maybe add a job phase table.
 
-    def __init__(self, log_path=None):
-        self.name = Constants.configs['job_name'] if Constants.configs['job_name'] else Constants.configs['script_name']
-        self.id = str(abs(hash(self.name + datetime.datetime.now().strftime(Constants.date_time_format))))
-        self.script = Constants.configs['script_name']
+    SUCCESSFUL = 0
+    WARNINGS = 2
+    FAILED = 1
+    STATUS_MAP = {
+        SUCCESSFUL: 'finished successfully',
+        WARNINGS: 'finished with warnings',
+        FAILED: 'failed'
+    }
+    FIRST_PHASE = 'INITIATED'
+
+    def __init__(self, log_path=None, job_id=None):
+        self._db = Database()
         self.phase_name = None
 
-        self._db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+        if job_id:
+            # Load in an existing job from database.
+            job_row = self._db.get_one_row('jobs', 'id="{0}"'.format(job_id))
+            job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.db_name]['jobs'])[0]
 
-        self._version = Constants.configs['version']
+            # Read in job phase.
+            phase_row = self._db.query_table('phases', 'job_id="{0}"'.format(self.id))
+            phase_dict = query_result_to_dict(phase_row, Constants.configs['tables'][Constants.db_name]['phases'])[-1]
+            self.phase_name = phase_dict['name']
 
-        self._db.insert_row('jobs', [self.id, self.name, self.script, self._version, log_path, None])
-        self.update_phase("INITIATED")
+        else:
+            # Add new job to database and start "initiated phase".
+            job_dict = self._create_job_dict()
+            self._db.insert_row_from_dict('jobs', job_dict)
 
-    def log(self, logger=None):
-        if logger is None:
-            logger = Constants.log
-        logger.info('Starting job: {0}'.format(self.id))
-        log_hr(logger)
+        # Set instance variables.
+        self.id = job_dict['id']
+        self.name = job_dict['name']
+        self.script = job_dict['script']
+        self.version = job_dict['version']
+        self.log_path = job_dict['log_path']
+        self.elapsed_time = job_dict['elapsed_time']
+        self.finish_state = job_dict['finish_state']
+        self.start_time = job_dict['start_time']
+        self.phase_name = job_dict['phase_name']
+
+        if self.phase_name is None:
+            self.update_phase(Job.FIRST_PHASE)
+
+    @staticmethod
+    def _create_job_dict():
+        if Constants.configs['job_name']:
+            name = Constants.configs['job_name']
+        else:
+            name = '{0}_manual_run'.format(Constants.configs['script_name'])
+        return {
+            'id': str(abs(hash(name + datetime.datetime.now().strftime(Constants.date_time_format)))),
+            'name': name.lower(),
+            'script': Constants.configs['script_name'],
+            'version': Constants.configs['version'],
+            'log_path': None,
+            'elapsed_time': None,
+            'finish_state': None,
+            'start_time': datetime.datetime.now().strftime(Constants.date_time_format),
+            'phase_name': None
+        }
 
     def _add_phase(self, name):
         phase_id = str(abs(hash(name + self.id)))
         date_time = datetime.datetime.now().strftime(Constants.date_time_format)
         self._db.insert_row('phases', [phase_id, self.id, date_time, name])
         return phase_id
+
+    def log(self, logger=None):
+        if logger is None:
+            logger = Constants.log
+        logger.info('Starting job: {0}'.format(self.id))
+        log_hr(logger)
 
     def update_phase(self, phase):
         self.phase_name = phase.replace(' ', '_').upper()
@@ -62,28 +109,25 @@ class Job:
 
     def finished(self, status=None, condition=None):
         log_hr()
+
+        # Update job phase.
         if condition is None:
             self.update_phase('TERMINATED_SUCCESSFULLY')
         else:
             Constants.log.warning('Job finished early with condition: "{0}"'.format(condition))
             self.update_phase('TERMINATED_{0}'.format(condition))
 
-        start_time = self._db.get_one_row('phases', 'job_id="{0}" AND name="INITIATED"'.format(self.id))[2]
+        # Update job.
+        start_time = self._db.get_one_row('phases', 'job_id="{}" AND name="{}"'.format(self.id, Job.FIRST_PHASE))[2]
         start_time = datetime.datetime.strptime(start_time, Constants.date_time_format)
         run_time = round((datetime.datetime.now() - start_time).total_seconds(), 3)
         self._db.update_value('jobs', 'elapsed_time', run_time, 'id="{0}"'.format(self.id))
+        self._db.update_value('jobs', 'finish_state', status, 'id="{0}"'.format(self.id))
 
-        if status:
-            status_map = {0: "SUCCESSFULLY",
-                          1: "with ERRORS",
-                          2: "with WARNINGS"}
-
-            if status in status_map:
-                Constants.log.info(
-                    'Job "{0}" finished {1} in {2} seconds.'.format(self.name, status_map[status], run_time))
-            else:
-                Constants.log.info(
-                    'Job {0} failed with status {1} after {2} seconds!'.format(self.name, status_map[status],
-                                                                               status))
+        # Log final status.
+        if status == Job.SUCCESSFUL or status == Job.WARNINGS:
+            Constants.log.info('Job "{0}" {1} in {2} seconds.'.format(self.name, Job.STATUS_MAP[status], run_time))
+        elif status == Job.FAILED:
+            Constants.log.error('Job "{0}" {1} after {2} seconds.'.format(self.name, Job.STATUS_MAP[status], run_time))
         else:
             Constants.log.info('Job "{0}" finished in {1} seconds.'.format(self.name, run_time))

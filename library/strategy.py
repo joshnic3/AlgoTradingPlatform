@@ -1,11 +1,12 @@
 import datetime
-import xml.etree.ElementTree as et
 
-from library.bootstrap import Constants
-from library.utilities.file import get_xml_element_attribute, get_xml_element_attributes
 import library.strategy_functions as strategy_functions
-from library.interfaces.sql_database import Database, query_result_to_dict
-from library.data_loader import DataLoader
+from library.bootstrap import Constants
+from library.data_loader import MarketDataLoader
+from library.interfaces.sql_database import Database
+from library.portfolio import Portfolio
+from library.risk_profile import RiskProfile
+from library.utilities.xml import get_xml_root, get_xml_element_attribute, get_xml_element_attributes
 
 
 class Signal:
@@ -47,9 +48,9 @@ class Signal:
 
 class StrategyContext:
 
-    def __init__(self, strategy_name, run_datetime, data, ds=None):
+    def __init__(self, db, strategy_name, run_datetime, data, ds=None):
         self.now = run_datetime
-        self.db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+        self.db = db
         self.data = data
         self.ds = ds if ds else None
         self.strategy_name = strategy_name
@@ -95,78 +96,10 @@ class StrategyContext:
             return None
 
 
-class Portfolio:
-
-    SYMBOL = 'symbol'
-    ID = 'id'
-    UNITS = 'units'
-    EXPOSURE = 'current_exposure'
-    ASSETS = 'assets'
-    PORTFOLIOS = 'portfolios'
-    CASH = 'cash'
-
-    def __init__(self, portfolio_id):
-        self._db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
-
-        # Load portfolio and asset data.
-        portfolio_row = self._db.get_one_row(Portfolio.PORTFOLIOS, 'id="{0}"'.format(portfolio_id))
-        portfolios_schema = Constants.configs['tables']['algo_trading_platform'][Portfolio.PORTFOLIOS]
-        portfolio_dict = query_result_to_dict([portfolio_row], portfolios_schema)[0]
-        asset_rows = self._db.query_table(Portfolio.ASSETS, 'portfolio_id="{0}"'.format(portfolio_dict[Portfolio.ID]))
-
-        self.id = portfolio_dict[Portfolio.ID]
-        self.assets = {r[2]: {Portfolio.SYMBOL: r[2], Portfolio.UNITS: int(r[3]), Portfolio.EXPOSURE: float(r[4])}
-                       for r in asset_rows}
-        self.cash = float(portfolio_dict[Portfolio.CASH])
-
-    def calculate_exposure(self, symbol, portfolio=None):
-        # Assume exposure == maximum possible loss from current position.
-        data_loader = DataLoader()
-        data_loader.load_latest_ticker(symbol)
-        assets = portfolio.assets if portfolio else self.assets
-        return assets[symbol][Portfolio.UNITS] * data_loader.data[DataLoader.LATEST_TICKER][symbol]
-
-    def update_db(self):
-        # Update portfolio cash.
-        condition = 'id="{}"'.format(self.id)
-        self._db.update_value(Portfolio.PORTFOLIOS, Portfolio.CASH, self.cash, condition)
-
-        # Update assets.
-        for symbol in self.assets:
-            units = int(self.assets[symbol][Portfolio.UNITS])
-            self._db.update_value(Portfolio.ASSETS, Portfolio.UNITS, units, 'symbol="{}"'.format(symbol))
-
-            # Calculate and update exposure.
-            condition = 'symbol="{}"'.format(symbol)
-            self._db.update_value(Portfolio.ASSETS, Portfolio.EXPOSURE, self.calculate_exposure(symbol), condition)
-
-    def sync_with_exchange(self, exchange):
-        # Not sure this works, atleast not when called from webservice/
-        # Sync weighted cash value for strategy portfolio.
-        cash = exchange.get_cash()
-        if cash:
-            self.cash = cash
-        else:
-            raise Exception('Could not sync portfolio with exchange.')
-
-        # Sync with exchange too.
-        for symbol in self.assets:
-            asset = self.assets[symbol]
-            position = exchange.get_position(symbol=asset[Portfolio.SYMBOL])
-            if position and 'qty' in position:
-                asset[Portfolio.UNITS] = int(position['qty'])
-            else:
-                asset[Portfolio.UNITS] = 0
-            asset[Portfolio.EXPOSURE] = self.calculate_exposure(asset[Portfolio.SYMBOL])
-
-    def valuate(self):
-        total_asset_value = sum([self.calculate_exposure(s) for s in self.assets])
-        return total_asset_value + self.cash
-
-
 class Strategy:
 
-    def __init__(self, name, data_requirements, function, parameters, risk_profile, execution_options=None):
+    def __init__(self, db, name, data_requirements, function, parameters, risk_profile, execution_options=None):
+        self._db = db
         self._data_requirements = data_requirements
         self._execution_function = function
         self._execution_parameters = parameters
@@ -176,18 +109,17 @@ class Strategy:
         self.run_datetime = datetime.datetime.now()
 
         # Load portfolio.
-        db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
-        portfolio_id = db.get_one_row('strategies', 'name="{0}"'.format(self.name))[2]
-        self.portfolio = Portfolio(portfolio_id)
+        portfolio_id = self._db.get_one_row('strategies', 'name="{0}"'.format(self.name))[2]
+        self.portfolio = Portfolio(portfolio_id, self._db)
 
-        self.data_loader = DataLoader()
+        self.data_loader = MarketDataLoader()
         self.risk_profile = risk_profile
         self.execution_options = execution_options
 
     def _load_required_data(self):
         # Load required data sets.
         for required_data_set in self._data_requirements:
-            if required_data_set['type'] == DataLoader.TICKER:
+            if required_data_set['type'] == MarketDataLoader.TICKER:
                 after = required_data_set['after'] if 'after' in required_data_set else datetime.datetime(1970, 1, 1, 0, 0, 0)
                 before = required_data_set['before'] if 'before' in required_data_set else self.run_datetime
                 self.data_loader.load_tickers(required_data_set['symbol'], before, after)
@@ -250,7 +182,7 @@ class Strategy:
         # Attempt to execute function.
         try:
             # Build strategy context.
-            context = StrategyContext(self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
+            context = StrategyContext(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
             parameters = self._execution_parameters
             signals = eval('strategy_functions.{0}(context,parameters)'.format(self._execution_function))
         except Exception as error:
@@ -260,12 +192,12 @@ class Strategy:
         return self._clean_signals(signals)
 
 
-def parse_strategy_from_xml(xml_path, return_object=False):
+def parse_strategy_from_xml(xml_path, return_object=False, db=None):
     # Get XML root.
-    root = et.parse(xml_path).getroot()
+    root = get_xml_root(xml_path)
 
     # Extract strategy name.
-    strategy_name = get_xml_element_attribute(root, 'name').lower()
+    strategy_name = get_xml_element_attribute(root, 'name', required=True).lower()
 
     # Extract execution options.
     execution_element = root.findall(Constants.xml.execution)[0]
@@ -273,7 +205,7 @@ def parse_strategy_from_xml(xml_path, return_object=False):
     execution_options = [o.lower() for o in execution_options_str.split(',')] if execution_options_str else None
 
     # Extract run time.
-    run_datetime_str = get_xml_element_attribute(root, 'run_datetime', required=False)
+    run_datetime_str = get_xml_element_attribute(root, 'run_datetime')
     run_datetime = datetime.datetime.strftime(run_datetime_str, Constants.date_time_format) if run_datetime_str else datetime.datetime.now()
 
     # Extract function name.
@@ -285,19 +217,23 @@ def parse_strategy_from_xml(xml_path, return_object=False):
     parameters = {i['key']: i['value'] for i in [get_xml_element_attributes(e) for e in parameter_elements]}
 
     # Parse risk profile. {check name: check_threshold}
-    risk_elements = [t for t in root.findall(Constants.xml.check)]
-    risk_profile = {i['name']: i['threshold'] for i in [get_xml_element_attributes(e) for e in risk_elements]}
+    check_elements = [t for t in root.findall(Constants.xml.check)]
+    check_attributes = [get_xml_element_attributes(e) for e in check_elements]
+    risk_profile_dict = {RiskProfile.CHECKS: {a[RiskProfile.CHECK]: a[RiskProfile.THRESHOLD] for a in check_attributes}}
 
     # Extract data requirements.
     # Extract ticker requirements.
     ticker_attributes = ['symbol']
     tickers = [get_xml_element_attributes(t, require=ticker_attributes) for t in root.findall(Constants.xml.ticker)]
     for ticker in tickers:
-        ticker['type'] = DataLoader.TICKER
+        ticker['type'] = MarketDataLoader.TICKER
     data_requirements = tickers
 
     if return_object:
-        return Strategy(strategy_name, data_requirements, function, parameters, risk_profile,
+        if db is None:
+            raise Exception('A database object must be passed in if returning object.')
+        risk_profile = RiskProfile(risk_profile_dict)
+        return Strategy(db, strategy_name, data_requirements, function, parameters, risk_profile,
                         execution_options=execution_options)
     else:
         return {
@@ -305,7 +241,7 @@ def parse_strategy_from_xml(xml_path, return_object=False):
             'run_datetime': run_datetime,
             'function': function,
             'parameters': parameters,
-            'risk_profile': risk_profile,
+            'risk_profile': risk_profile_dict,
             'data_requirements': data_requirements,
             'execution_options': execution_options
         }
@@ -313,7 +249,7 @@ def parse_strategy_from_xml(xml_path, return_object=False):
 
 def parse_strategy_setup_from_xml(xml_path):
     # Get XML root.
-    root = et.parse(xml_path).getroot()
+    root = get_xml_root(xml_path)
 
     # Check xml has setup elements.
     if not root.findall(Constants.xml.setup):

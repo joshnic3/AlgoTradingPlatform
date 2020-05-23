@@ -19,7 +19,7 @@ def initiate_database(db_root_path, name, schema, environment):
         pass
 
     # Create tables.
-    db = Database(db_root_path, name, environment)
+    db = Database(db_root_path, environment, name=name)
     for table in schema:
 
         columns = ['{} TEXT'.format(c) for c in schema[table]]
@@ -34,17 +34,22 @@ def query_result_to_dict(query_result, table_schema):
 
 class Database:
 
-    def __init__(self, db_root_path, name, environment):
-        self._name = name
+    EMPTY_PLACEHOLDER = '-'
+
+    def __init__(self, db_root_path=None, environment=None, name=None):
+        self._name = name if name else Constants.db_name
+        self._environment = environment if environment else Constants.configs['environment']
 
         # Check database file exists.
+        db_root_path = db_root_path if db_root_path else Constants.configs['db_root_path']
         self.db_file_path = os.path.join(db_root_path, '{0}.db'.format(self._name))
         if not os.path.exists(self.db_file_path):
             raise Exception('Database not found in path: {}'.format(db_root_path))
 
+        # Create connection.
         self._connection = sqlite3.connect(self.db_file_path)
         self._cursor = self._connection.cursor()
-        self._environment = environment
+
         self.tables = [i[0] for i in
                        self.execute_sql("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")]
 
@@ -67,6 +72,11 @@ class Database:
             return None
         sql = 'INSERT INTO {0} VALUES ("{1}");'.format(table, '", "'.join(values))
         self.execute_sql(sql)
+
+    def insert_row_from_dict(self, table, row_dict):
+        table_schema = Constants.configs['tables'][self._name][table]
+        values = [row_dict.get(f, Database.EMPTY_PLACEHOLDER) for f in table_schema]
+        self.insert_row(table, values)
 
     def query_table(self, table, condition=None, columns=None):
         if isinstance(columns, list):

@@ -6,6 +6,8 @@ class Constants:
         self.date_time_format = '%Y%m%d%H%M%S'
         self.pp_time_format = '%H:%M.%S'
         self.xml = XMLNameSpace()
+        self.db_name = 'algo_trading_platform'
+        self.md_db_name = 'algo_trading_platform'
 
 
 class XMLNameSpace:

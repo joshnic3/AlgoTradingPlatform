@@ -1,20 +1,19 @@
 import optparse
 import os
 import sys
-import xml.etree.ElementTree as et
 
 from crontab import CronTab
 
 from library.bootstrap import Constants
 from library.interfaces.sql_database import initiate_database, Database
+from library.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 from library.utilities.file import add_dir, parse_configs_file, parse_wildcards, get_environment_specific_path, \
     copy_file
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
-from library.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 
-INITIATE_ENVIRONMENT = 'init_env'
-ON_BOARD_STRATEGIES = 'onboard_strat'
-SETUP_CRON_JOBS = 'cron_jobs'
+INITIATE_ENVIRONMENT = 'environment'
+ON_BOARD_STRATEGIES = 'strategy'
+SETUP_CRON_JOBS = 'jobs'
 
 
 def parse_cmdline_args(app_name):
@@ -75,7 +74,7 @@ def main():
         db = dbos[0]
     else:
         # Initiate database
-        db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+        db = Database(Constants.configs['db_root_path'], Constants.configs['environment'])
         # Load application configs.
         app_configs = parse_configs_file({'root_path': Constants.configs['root_path'],
                                           'app_name': 'algo_trading_platform',

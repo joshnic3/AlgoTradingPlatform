@@ -5,60 +5,33 @@ import sys
 import time
 
 from library.bootstrap import Constants
-from library.interfaces.exchange import AlpacaInterface
+from library.exposure_manager import ExposureManager
+from library.interfaces.exchange import AlpacaInterface as Alpaca
 from library.interfaces.sql_database import Database, generate_unique_id
+from library.portfolio import Portfolio
+from library.strategy import parse_strategy_from_xml, Signal
 from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
-from library.strategy import parse_strategy_from_xml, Signal, Portfolio
-from library.exposure_manager import ExposureManager
 
 
 class TradeExecutor:
 
     def __init__(self, db, strategy, exchange):
         self._db = db
+        self._default_no_of_units = 1
 
         self.strategy = strategy
+        self.risk_profile = strategy.risk_profile
         self.portfolio = self.strategy.portfolio
         self.exchange = exchange
-
-    def _get_order_data(self, order_id):
-        return [o for o in self.exchange.get_orders() if o['id'] == order_id][0]
-
-    @staticmethod
-    def _meets_risk_profile(portfolio, risk_profile):
-        # Return True if current state of the potential portfolio meets the strategy's risk profile.
-
-        # Make sure we only sell what we have.
-        portfolio_meets_risk_profile = True
-        negative_units = [portfolio.assets[a][Portfolio.SYMBOL] for a in portfolio.assets if portfolio.assets[a][Portfolio.UNITS] < 0]
-        if negative_units:
-            assets = ', '.join(negative_units) if len(negative_units) > 1 else negative_units[0]
-            Constants.log.warning('Not enough units of {0} held for trade.'.format(assets))
-            portfolio_meets_risk_profile = False
-
-        # Enforce exposure limit
-        if 'max_exposure' in risk_profile:
-            exposure = sum([portfolio.assets[a][Portfolio.EXPOSURE] for a in portfolio.assets])
-            exposure_overflow = exposure - float(risk_profile['max_exposure'])
-            if exposure_overflow > 0:
-                Constants.log.warning('Maximum exposure limit exceeded by {0}.'.format(abs(exposure_overflow)))
-                portfolio_meets_risk_profile = False
-
-        # if 'min_liquidity' in risk_profile:
-        #     return True
-
-        return portfolio_meets_risk_profile
 
     def generate_trades_from_signals(self, signals):
         # Generates trades from signals using the strategy's risk profile and and execution options.
 
-        default_no_of_units = 1
-
         # Manage exposure if specified in stratgey execution options.
         if 'manage_exposure' in self.strategy.execution_options:
-            exposure_manager = ExposureManager(self.strategy, default_no_of_units)
+            exposure_manager = ExposureManager(self.strategy, default_units=self._default_no_of_units)
         else:
             exposure_manager = None
 
@@ -68,7 +41,7 @@ class TradeExecutor:
         for signal in signals:
             if signal.signal != Signal.HOLD:
                 # Decide how many units to trade using strategy options and portfolio data.
-                units = exposure_manager.suggest_units_to_trade(signal) if exposure_manager else default_no_of_units
+                units = exposure_manager.units_to_trade(signal) if exposure_manager else self._default_no_of_units
 
                 # Make potential portfolio changes for sell order.
                 # TODO May need to consider exchange commissions here.
@@ -86,7 +59,7 @@ class TradeExecutor:
                 potential_portfolio.assets[signal.symbol][Portfolio.EXPOSURE] = potential_exposure
 
                 # Only append trade if current state of the potential portfolio meets the strategy's risk profile.
-                if self._meets_risk_profile(potential_portfolio, self.strategy.risk_profile):
+                if self.risk_profile.assess_portfolio(potential_portfolio):
                     trades.append((signal.signal, signal.symbol, units, signal.target_value))
 
         if trades:
@@ -107,31 +80,33 @@ class TradeExecutor:
     def process_executed_trades(self, executed_trade_ids, log):
         processed_trades = []
         for order_id in executed_trade_ids:
-            data = self._get_order_data(order_id)
-            status = data['status']
+            data = self.exchange.get_order_data(order_id)
+            status = data[Alpaca.STATUS]
 
             # Wait for order to fill.
-            while status == 'new' or status == 'partially_filled':
+            while status == Alpaca.NEW_ORDER or status == Alpaca.PARTIALLY_FILLED_ORDER:
                 time.sleep(0.5)
-                data = self._get_order_data(order_id)
-                status = data['status']
+                data = self.exchange.get_order_data(order_id)
+                status = data[Alpaca.STATUS]
 
             # Create order tuple with trade results.
-            if status == 'filled':
-                trade = (data[Portfolio.SYMBOL], int(data['filled_qty']), float(data['filled_avg_price']))
+            if status == Alpaca.FILLED_ORDER:
+                trade = (data[Portfolio.SYMBOL], int(data[Alpaca.FILLED_UNITS]), float(data[Alpaca.FILLED_MEAN_PRICE]))
 
                 # Update portfolio capital.
-                change_in_capital = (int(data['filled_qty']) * float(data['filled_avg_price'])) * 1 if data['side'] == Signal.SELL else -1
+                change_in_capital = (int(data[Alpaca.FILLED_UNITS]) * float(data[Alpaca.FILLED_MEAN_PRICE])) * 1 \
+                    if data[Alpaca.ORDER_SIDE] == Signal.SELL else -1
                 self.portfolio.cash += change_in_capital
 
                 # Update portfolio assets.
-                change_in_units = int(trade[1]) * 1 if data['side'] == Signal.BUY else -1
+                change_in_units = int(trade[1]) * 1 if data[Alpaca.ORDER_SIDE] == Signal.BUY else -1
                 self.portfolio.assets[data[Portfolio.SYMBOL]][Portfolio.UNITS] += change_in_units
 
                 # Add to processed trades list.
                 processed_trades.append(trade)
             else:
-                log.warning('Order {0} [{1} * {2}] failed. status: {3}'.format(order_id, data['qty'], data['symbol'], status))
+                log.warning('Order {0} [{1} * {2}] failed. status: {3}'
+                            .format(order_id, data[Alpaca.UNITS], data[Alpaca.SYMBOL], status))
         return processed_trades
 
     def update_portfolio_db(self, append_to_historical_values=True):
@@ -147,7 +122,7 @@ class TradeExecutor:
                 now.strftime(Constants.date_time_format),
                 self.portfolio.valuate()
             ])
-        Constants.log.info('Updated portfolio and recorded value.')
+        Constants.log.info('Updated portfolio and recorded current valuation.')
 
 
 def parse_cmdline_args(app_name):
@@ -189,7 +164,7 @@ def main():
     log_configs(Constants.configs)
 
     # Setup database.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+    db = Database()
     db.log()
 
     # Initiate Job
@@ -197,7 +172,7 @@ def main():
     job.log()
 
     # Parse strategy xml.
-    strategy = parse_strategy_from_xml(Constants.configs['xml_path'], return_object=True)
+    strategy = parse_strategy_from_xml(Constants.configs['xml_path'], return_object=True, db=db)
     Constants.log.info("Strategy portfolio: {0}".format(strategy.portfolio.id))
     db.update_value('strategies', 'updated_by', job.id, 'name="{}"'.format(strategy.name.lower()))
 
@@ -206,7 +181,7 @@ def main():
 
     if not signals:
         # Script cannot go any further from this point, but should not error.
-        job.finished(condition='no valid signals')
+        job.finished(condition='no valid signals', status=Job.WARNINGS)
         return 2
 
     # Log signals.
@@ -214,15 +189,15 @@ def main():
 
     # Initiate exchange.
     if Constants.configs['mode'] == 'simulate':
-        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
+        exchange = Alpaca(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
     elif Constants.configs['mode'] == 'execute':
-        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'])
+        exchange = Alpaca(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'])
     else:
         # Script cannot go any further from this point.
         raise Exception('Mode "{0}" is not valid.'.format(Constants.configs['mode']))
     if not exchange.is_exchange_open():
         # Script cannot go any further from this point, but should not error.
-        job.finished(condition='exchange is closed')
+        job.finished(condition='exchange is closed', status=Job.WARNINGS)
         return 2
 
     # Initiate trade executor.
@@ -234,7 +209,7 @@ def main():
     if not proposed_trades:
         # Script cannot go any further from this point, but should not error. Should still update porfolio though.
         trade_executor.update_portfolio_db()
-        job.finished(condition='no proposed trades')
+        job.finished(condition='no proposed trades', status=Job.WARNINGS)
         return 2
 
     # Execute trades.
@@ -244,13 +219,11 @@ def main():
     # Process trades.
     job.update_phase('Processing_trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
-
-    Constants.log.info('Updated portfolio in database.')
     trade_executor.update_portfolio_db()
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
-    job.finished()
+    job.finished(status=Job.SUCCESSFUL)
 
 
 if __name__ == "__main__":

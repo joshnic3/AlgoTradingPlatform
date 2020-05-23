@@ -2,8 +2,18 @@ import json
 import requests
 
 
-
 class AlpacaInterface:
+
+    STATUS = 'status'
+    NEW_ORDER = 'new'
+    PARTIALLY_FILLED_ORDER = 'partially_filled'
+    FILLED_ORDER = 'filled'
+    ORDER_SIDE = 'side'
+    FILLED_UNITS = 'filled_qty'
+    FILLED_MEAN_PRICE = 'filled_avg_price'
+    SYMBOL = 'symbol'
+    UNITS = 'qty'
+
 
     def __init__(self, key_id, secret_key, simulator=False):
         if simulator:
@@ -17,12 +27,12 @@ class AlpacaInterface:
             'CLOCK': '{0}/v2/clock'.format(base_url)
         }
 
-    def _request_get(self, url, params=None, data=None, handle_error=False):
+    def _request_get(self, url, params=None, data=None, except_error=False):
         # TODO Handle response errors. Should log non-fatal responses and raise exceptions for fatal ones.
         results = requests.get(url, data=data, params=params, headers=self.headers)
         if results.status_code == 200:
             return json.loads(results.content.decode('utf-8'))
-        elif handle_error:
+        elif except_error:
             return json.loads(results.content.decode('utf-8'))
         else:
             error_message = json.loads(results.text)['message']
@@ -43,8 +53,9 @@ class AlpacaInterface:
         data = self._request_get(self.api['CLOCK'])
         return data['is_open']
 
-    def get_orders(self):
-        return self._request_get(self.api['ORDERS'], params={"status": "all"})
+    def get_order_data(self, order_id):
+        orders = self._request_get(self.api['ORDERS'], params={"status": "all"})
+        return [o for o in orders if o['id'] == order_id][0]
 
     def get_cash(self):
         data = self._request_get(self.api['ACCOUNT'])
@@ -53,7 +64,7 @@ class AlpacaInterface:
         return None
 
     def get_position(self, symbol, key=None):
-        data = self._request_get('{}/{}'.format(self.api['POSITIONS'], symbol), handle_error=True)
+        data = self._request_get('{}/{}'.format(self.api['POSITIONS'], symbol), except_error=True)
         if 'code' in data:
             return 0
         if key in data:

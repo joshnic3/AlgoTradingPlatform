@@ -1,61 +1,72 @@
 import requests
+import json
 
-from library.interfaces.sql_database import Database
-from library.utilities.file import read_json_file, read_json_file
-import os
 from library.bootstrap import Constants
+from library.utilities.file import parse_wildcards
 
 
-# Data source db is constant so can be initiated in a function.
-def initiate_data_source_db(db_root_path, environment):
-    return Database(db_root_path, 'data_sources', environment)
+class AlphaVantageAPI:
+    NAME = 'AlphaVantage'
+    URL_TEMPLATE = 'https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s%&apikey=%k%'
+    SYMBOL_WILDCARD = '%s%'
+    API_KEY_WILDCARD = '%k%'
+    PRICE_WILDCARD = '%p%'
+    RESPONSE_PARENT = 'Global Quote'
+    SYMBOL = '01. symbol'
+    PRICE = '05. price'
+    VOLUME = '06. volume'
 
 
 class TickerDataSource:
+    SYMBOL = 'symbol'
+    PRICE = 'price'
+    VOLUME = 'volume'
 
     def __init__(self):
-        self.name = 'FML'
-        config_file = os.path.join(Constants.configs['configs_root_path'], 'fml_data_source_config.json')
-        self._configs = read_json_file(config_file)
+        self.name = AlphaVantageAPI.NAME
+        self._request_history = {}
         if Constants.log:
-            Constants.log.info('Initiated data source: {0}'.format(self.name))
+            Constants.log.info('Data Source: Initiated {0}'.format(self.name))
 
     def __str__(self):
-        return self.name
-
-    # TODO Handle common and else errors.
-    def _catch_errors(self, response):
-        response_code = response.status_code
-        if response_code == 200:
-            return response
-        raise Exception('Bad response from source: {0}, code: {1}'.format(self.name, response_code))
-
-    def _call_api_return_as_dict(self, url):
-        try:
-            response = requests.get(url)
-            self._catch_errors(response)
-            results = response.json()
-        except requests.HTTPError:
-            raise Exception('Could not connect to source: {0}'.format(self.name))
-
-        return results
-
-    def _extract_data(self, result):
-        # Takes [{symbol_key: symbol}, {value_key, value}] and returns {symbol: value}.
-        return dict(zip([r[self._configs['symbol_key']] for r in result], [r[self._configs['value_key']] for r in result]))
+        return 'Data Source: {0}'.format(self.name)
 
     @staticmethod
-    def _prepare_api_call_url(template, wildcards_dict):
-        url = template
-        for wildcard in wildcards_dict:
-            url = url.replace(wildcard, wildcards_dict[wildcard])
-        return url
+    def _prepare_api_call_url(symbol):
+        api_key = 'DemoKey'
+        wildcards = {AlphaVantageAPI.SYMBOL_WILDCARD: symbol, AlphaVantageAPI.API_KEY_WILDCARD: api_key}
+        return parse_wildcards(AlphaVantageAPI.URL_TEMPLATE, wildcards)
 
-    def request_tickers(self, symbols):
-        symbols_str = self._configs['delimiter'].join(symbols) if len(symbols) > 1 else symbols[0]
-        wildcard = {self._configs['wildcards']['symbols']: symbols_str}
-        url = self._prepare_api_call_url(self._configs['request_template'], wildcard)
-        result = self._call_api_return_as_dict(url)
-        if len(symbols) > 1:
-            return self._extract_data(result['companiesPriceList'])
-        return self._extract_data([result])
+    def _call_api(self, url):
+        if Constants.configs['debug']:
+            Constants.log.warning()
+
+        results = requests.get(url)
+        if results.status_code == 200:
+            data = json.loads(results.content.decode('utf-8'))
+            self._request_history[url] = data
+            return data
+        else:
+            raise Exception('Data Source: Bad status code {0}. {1}'.format(results.status_code, json.loads(results)))
+
+    def request_count(self):
+        return len(self._request_history)
+
+    def request_quote(self, symbol):
+        url = self._prepare_api_call_url(symbol.upper())
+        results = self._call_api(url)
+
+        if AlphaVantageAPI.RESPONSE_PARENT in results:
+            # Extract data and return volume, price and symbol in dict
+            return {
+                TickerDataSource.SYMBOL: results[AlphaVantageAPI.RESPONSE_PARENT][AlphaVantageAPI.SYMBOL],
+                TickerDataSource.PRICE: float(results[AlphaVantageAPI.RESPONSE_PARENT][AlphaVantageAPI.PRICE]),
+                TickerDataSource.VOLUME: int(results[AlphaVantageAPI.RESPONSE_PARENT][AlphaVantageAPI.VOLUME])
+            }
+        else:
+            Constants.log.warning('Data Source: Bad response. {0}'.format(results))
+            return None
+
+    def request_quotes(self, symbols):
+        data = [self.request_quote(s) for s in symbols]
+        return [d for d in data if d]

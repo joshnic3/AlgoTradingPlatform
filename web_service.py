@@ -7,12 +7,12 @@ import sys
 from flask import Flask, request
 
 from library.bootstrap import Constants
-from library.data_loader import DataLoader
+from library.data_loader import MarketDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
+from library.portfolio import Portfolio
 from library.utilities.file import parse_configs_file
-from library.utilities.job import is_script_new
-from library.strategy import Portfolio
+from library.utilities.job import is_script_new, Job
 
 app = Flask(__name__)
 
@@ -58,7 +58,7 @@ def market_data():
         after = datetime.datetime.now() - datetime.timedelta(hours=24)
 
     # Return data.
-    data_loader = DataLoader()
+    data_loader = MarketDataLoader()
     data_loader.load_tickers(symbol, before, after)
     data = data_loader.data['ticker'][symbol]
     data = [(d[0].strftime(Constants.pp_time_format), d[1]) for d in data]
@@ -75,7 +75,7 @@ def strategies():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+    db = Database()
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -104,7 +104,7 @@ def portfolio():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+    db = Database()
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -115,30 +115,35 @@ def portfolio():
         if portfolio_row is None:
             return response(400, 'Portfolio does not exist.')
 
-        portfolio_dict = query_result_to_dict([portfolio_row], Constants.configs['tables']['algo_trading_platform']['portfolios'])[0]
+        portfolio_obj = Portfolio(params['id'], db)
 
-        # Fetch portfolio data.
-        condition = 'portfolio_id="{0}"'.format(params['id'])
+        # Fetch historical valuations.
+        condition = 'portfolio_id="{0}"'.format(portfolio_obj.id)
         historical_valuations_rows = db.query_table('historical_portfolio_valuations', condition)
         historical_date_times = [r[2] for r in historical_valuations_rows]
         historical_values = [float(r[3]) for r in historical_valuations_rows]
 
-        # Add historical values time series and
-        portfolio_dict['historical_valuations'] = [historical_date_times, historical_values]
-        portfolio_dict['value'] = historical_values[-1] if historical_values else portfolio_dict['value'] = '-'
-
-        # Add 24hr PnL to portfolio data. TODO Limit should be placed on the query itself.
+        # Calculate 24hr PnL.
         twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
         valuations = []
         for row in historical_valuations_rows:
             if datetime.datetime.strptime(row[2], Constants.date_time_format) > twenty_four_hrs_ago:
                 valuations.append([row[2], row[3]])
-        if len(valuations) > 1:
-            portfolio_dict['pnl'] = round(float(valuations[-1][1]) - float(valuations[0][1]), 2)
-        else:
-            portfolio_dict['pnl'] = '-'
 
-        return response(200, portfolio_dict)
+        if valuations:
+            pnl = round(float(valuations[-1][1]) - float(valuations[0][1]), 2)
+        else:
+            pnl = '-'
+
+        data = {
+            'id': portfolio_obj.id,
+            'cash': round(portfolio_obj.cash, 2),
+            'value': portfolio_obj.valuate(),
+            'historical_valuations': [historical_date_times, historical_values],
+            'pnl': pnl
+        }
+
+        return response(200, data)
 
     return response(401, 'Portfolio id required.')
 
@@ -156,8 +161,9 @@ def assets():
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
+        db = Database()
         exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
-        portfolio_obj = Portfolio(params['id'])
+        portfolio_obj = Portfolio(params['id'], db)
         portfolio_obj.sync_with_exchange(exchange)
         return response(200, portfolio_obj.assets)
 
@@ -173,25 +179,24 @@ def job():
     if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
-    # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
-
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
-        job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
-        job_dict = query_result_to_dict([job_row], Constants.configs['tables']['algo_trading_platform']['jobs'])[0]
-        new_script = is_script_new(db, job_dict['script'])
-        job_dict['version'] = '{0}{1}'.format(job_dict['version'], '(NEW)' if new_script else '')
+        job_obj = Job(job_id=params['id'])
 
-        # Extract phase data.
-        phase_row = db.query_table('phases', 'job_id="{0}"'.format(job_dict['id']))
-        phase_dict = query_result_to_dict(phase_row, Constants.configs['tables']['algo_trading_platform']['phases'])[-1]
-        job_dict['phase_name'] = phase_dict['name']
-        phase_datetime = datetime.datetime.strptime(phase_dict['datetime'], Constants.date_time_format)
-        job_dict['phase_datetime'] = phase_datetime.strftime(Constants.pp_time_format)
-        return response(200, job_dict)
+        data = {
+            'name': job_obj.name,
+            'script': job_obj.script,
+            'log_path': job_obj.log_path,
+            'start_time': '',
+            'elapsed_time': job_obj.elapsed_time,
+            'finish_state': job_obj.STATUS_MAP[int(job_obj.finish_state)],
+            'version': '{0}{1}'.format(job_obj.version, ' (NEW)' if is_script_new(job_obj.script) else ''),
+            'phase_name': job_obj.phase_name
+        }
+
+        return response(200, data)
 
     return response(401, 'Job id required.')
 
@@ -206,7 +211,7 @@ def log():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database(Constants.configs['db_root_path'], 'algo_trading_platform', Constants.configs['environment'])
+    db = Database()
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
