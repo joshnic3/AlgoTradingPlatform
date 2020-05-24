@@ -36,8 +36,33 @@ def response(status, data=None):
 @app.route('/exchange_open')
 def exchange_open():
     # Return "True" if exchange is open and "False" if it is closed.
+
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
     exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
     return response(200, str(exchange.is_exchange_open()))
+
+
+@app.route('/tick_capture_job')
+def tick_capture_job():
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Initiate database connection.
+    db = Database()
+    start_time_string, job_id = db.get_one_row('jobs', 'script="{}"'.format('tick_capture'), 'max(start_time), id')
+    start_time = datetime.datetime.strptime(start_time_string, Constants.date_time_format)
+    data = {
+        'start_time': start_time.strftime(Constants.pp_time_format),
+        'job_id': job_id
+    }
+
+    return response(200, data)
 
 
 @app.route('/market_data')
@@ -102,16 +127,22 @@ def strategies():
 
             if WayPoint.VALUATION in data:
                 # Extract historical valuations.
-                valuations = [[format_datetime_sting(v[0]), float(v[1])]for v in data[WayPoint.VALUATION]]
+                valuations = [[datetime.datetime.strptime(v[0], Constants.date_time_format), float(v[1])] for v in data[WayPoint.VALUATION]]
 
                 # Calculate 24hr pnl.
-                pnl = 5.33
-            else:
-                pnl = 0
-                valuations = None
+                now = datetime.datetime.now()
+                twenty_four_hrs_ago = now - datetime.timedelta(hours=24)
+                twenty_four_hour_valuations = [d[1] for d in valuations if twenty_four_hrs_ago < d[0] < now]
 
-            strategy['historical_valuations'] = valuations
-            strategy['pnl'] = float_to_string(pnl)
+                # Format data.
+                formatted_pnl = float_to_string(sum(twenty_four_hour_valuations)/len(twenty_four_hour_valuations))
+                formatted_valuations = [[v[0].strftime(Constants.pp_time_format), v[1]] for v in valuations]
+            else:
+                formatted_pnl = 0
+                formatted_valuations = None
+
+            strategy['historical_valuations'] = formatted_valuations
+            strategy['pnl'] = formatted_pnl
 
     return response(200, strategies_as_dict)
 

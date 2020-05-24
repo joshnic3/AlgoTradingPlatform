@@ -47,7 +47,7 @@ def main():
     db.log()
 
     # Initiate Job.
-    job = Job()
+    job = Job(log_path=log_path)
     job.log()
 
     # Parse subscriptions file.
