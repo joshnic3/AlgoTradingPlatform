@@ -92,3 +92,10 @@ def pairs(context, parameters):
     context.set_variable('a_mean_value', mean(a_values))
     context.set_variable('b_mean_value', mean(b_values))
     return context.signals
+
+
+def test(context, parameters):
+
+    context.add_signal(parameters['symbol_a'])
+
+    return context.signals

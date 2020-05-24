@@ -4,18 +4,58 @@ from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
 
 
-class MarketDataLoader:
+class DataLoader:
 
-    TICKER = 'ticker'
-    LATEST_TICKER = 'latest_ticker'
-    DB_NAME = 'market_data'
-
-    def __init__(self):
-        db_name = MarketDataLoader.DB_NAME
+    def __init__(self, db_name):
         self._db = Database(Constants.configs['db_root_path'], Constants.configs['environment'], name=db_name)
         self.type = None
         self.data = {}
         self.warnings = {}
+
+    def report_warnings(self):
+        if Constants.log:
+            log_prefix = 'Data Loader: '
+            if self.warnings:
+                for data_type in self.warnings:
+                    data_warnings = self.warnings[data_type]
+                    Constants.log.warning('{}Data warning: type: {}, {}, '.format(log_prefix, data_type, data_warnings))
+            else:
+                Constants.log.info('{}}No data warnings.'.format(log_prefix))
+
+
+class WayPointDataLoader(DataLoader):
+
+    DB_NAME = 'algo_trading_platform'
+    WAY_POINT_TIME_SERIES = 'way_point_time_series'
+
+    def __init__(self):
+        DataLoader.__init__(self, WayPointDataLoader.DB_NAME)
+
+    def load_way_point_time_series(self, strategy_name):
+        self.type = WayPointDataLoader.WAY_POINT_TIME_SERIES
+        self.data[self.type] = {strategy_name: []}
+        way_point_rows = self._db.query_table('strategy_way_points', 'strategy="{}"'.format(strategy_name))
+        if way_point_rows:
+            # Extract time series.
+            way_point_time_series = [(way_point_row[-3:]) for way_point_row in way_point_rows]
+
+            # Group time series by type.
+            way_point_types = set([w[0] for w in way_point_time_series])
+            for way_point_type in way_point_types:
+                data = {way_point_type: [w[-2:] for w in way_point_time_series if w[0] == way_point_type]}
+                self.data[self.type][strategy_name].append(data)
+        else:
+            self.warnings[self.type] = {strategy_name: 'not_in_database'}
+
+
+class MarketDataLoader(DataLoader):
+
+    DB_NAME = 'market_data'
+    TICKER = 'ticker'
+    LATEST_TICKER = 'latest_ticker'
+
+    def __init__(self):
+        DataLoader.__init__(self, MarketDataLoader.DB_NAME)
 
     @staticmethod
     def _staleness(time_series, scope=1):
@@ -43,7 +83,7 @@ class MarketDataLoader:
         ticks_time_series = []
         warnings = []
         for tick_row in tick_rows:
-            tick_dict = query_result_to_dict([tick_row], Constants.configs['tables']['market_data']['ticks'])[0]
+            tick_dict = query_result_to_dict([tick_row], Constants.configs['tables'][MarketDataLoader.DB_NAME]['ticks'])[0]
             tick_datetime = datetime.datetime.strptime(tick_dict['date_time'], Constants.date_time_format)
             tick_value = float(tick_dict['value'])
             ticks_time_series.append((tick_datetime, tick_value))
@@ -78,7 +118,7 @@ class MarketDataLoader:
         # Read tick from database.
         condition = 'symbol="{0}"'.format(symbol)
         tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), value')
-        if tick_rows:
+        if tick_rows[1]:
             self.data[self.type] = {symbol: float(tick_rows[1])}
         else:
             self.warnings[self.type] = {symbol: 'no_ticks_{0}'.format(symbol.lower())}

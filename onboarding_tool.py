@@ -46,8 +46,6 @@ def main():
     else:
         functions_to_do = function
 
-
-
     if INITIATE_ENVIRONMENT in functions_to_do:
         # Generate resource directories.
         resource_directories = ['logs', 'data', 'configs', 'strategies']
@@ -68,13 +66,15 @@ def main():
                                           'environment': Constants.configs['environment']
                                           })
 
+
         # Initiate database.
         dbos = [initiate_database(app_configs['db_root_path'], d, app_configs['tables'][d], Constants.configs['environment'])
                 for d in app_configs['tables']]
         db = dbos[0]
     else:
         # Initiate database
-        db = Database(Constants.configs['db_root_path'], Constants.configs['environment'])
+        db_path = os.path.join(Constants.configs['root_path'], Constants.configs['environment'], 'data')
+        db = Database(db_path, Constants.configs['environment'])
         # Load application configs.
         app_configs = parse_configs_file({'root_path': Constants.configs['root_path'],
                                           'app_name': 'algo_trading_platform',

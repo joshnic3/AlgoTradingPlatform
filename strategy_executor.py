@@ -9,7 +9,7 @@ from library.exposure_manager import ExposureManager
 from library.interfaces.exchange import AlpacaInterface as Alpaca
 from library.interfaces.sql_database import Database, generate_unique_id
 from library.portfolio import Portfolio
-from library.strategy import parse_strategy_from_xml, Signal
+from library.strategy import parse_strategy_from_xml, Signal, WayPoint
 from library.utilities.file import parse_configs_file
 from library.utilities.job import Job
 from library.utilities.log import get_log_file_path, setup_log, log_configs
@@ -29,7 +29,7 @@ class TradeExecutor:
     def generate_trades_from_signals(self, signals):
         # Generates trades from signals using the strategy's risk profile and and execution options.
 
-        # Manage exposure if specified in stratgey execution options.
+        # Manage exposure if specified in strategy execution options.
         if 'manage_exposure' in self.strategy.execution_options:
             exposure_manager = ExposureManager(self.strategy, default_units=self._default_no_of_units)
         else:
@@ -189,8 +189,9 @@ def main():
         job.finished(condition='no signals')
         return Job.WARNINGS
 
-    # Log signals.
+    # Log signals and create way point.
     Constants.log.info('Generated {0} valid signal(s): {1}.'.format(len(signals), ', '.join([str(s) for s in signals])))
+    WayPoint(strategy=strategy.name, data=signals, way_point_type=WayPoint.SIGNAL)
 
     # Initiate exchange.
     if Constants.configs['mode'] == 'simulate':
@@ -212,7 +213,7 @@ def main():
     # Prepare trades.
     proposed_trades = trade_executor.generate_trades_from_signals(signals)
     if not proposed_trades:
-        # Script cannot go any further from this point, but should not error. Should still update porfolio though.
+        # Script cannot go any further from this point, but should not error. Should still update portfolio though.
         trade_executor.update_portfolio_db()
         job.finished(condition='no proposed trades')
         return Job.WARNINGS
@@ -224,7 +225,10 @@ def main():
     # Process trades.
     job.update_phase('Processing_trades')
     processed_trades = trade_executor.process_executed_trades(executed_order_ids, Constants.log)
+
+    # Update save portfolio to database and create waypoint.
     trade_executor.update_portfolio_db()
+    WayPoint(strategy=strategy.name, data=processed_trades, way_point_type=WayPoint.TRADE)
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))

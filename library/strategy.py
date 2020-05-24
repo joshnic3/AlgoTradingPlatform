@@ -3,10 +3,48 @@ import datetime
 import library.strategy_functions as strategy_functions
 from library.bootstrap import Constants
 from library.data_loader import MarketDataLoader
-from library.interfaces.sql_database import Database
 from library.portfolio import Portfolio
 from library.risk_profile import RiskProfile
 from library.utilities.xml import get_xml_root, get_xml_element_attribute, get_xml_element_attributes
+from library.interfaces.sql_database import Database, query_result_to_dict
+
+
+class WayPoint:
+    GENERAL = 'general'
+    SIGNAL = 'signal'
+    TRADE = 'trade'
+
+    def __init__(self, way_point_id=None, strategy=None, data=None, way_point_type=None):
+        self._db = Database()
+
+        if way_point_id:
+            # Load in an existing job from database.
+            way_point_row = self._db.get_one_row('strategy_way_points', 'id="{0}"'.format(way_point_id))
+            way_point_table_schema = Constants.configs['tables'][Constants.db_name]['strategy_way_points']
+            way_point_dict = query_result_to_dict([way_point_row], way_point_table_schema)[0]
+        else:
+            if strategy is None or data is None:
+                raise Exception('Way point constructor requires strategy id and data if not reading database.')
+            # Create new job and add it to the database.
+            way_point_dict = self._create_way_point_dict(way_point_type, strategy, data)
+            self._db.insert_row_from_dict('strategy_way_points', way_point_dict)
+
+        # Set instance variables.
+        self.id = way_point_dict['id']
+        self.strategy_id = way_point_dict['strategy']
+        self.timestamp = way_point_dict['timestamp']
+        self.data = way_point_dict['data']
+
+    @staticmethod
+    def _create_way_point_dict(way_point_type, strategy, data):
+        way_point_type = way_point_type if way_point_type else WayPoint.GENERAL
+        return {
+            'id': str(abs(hash(strategy + datetime.datetime.now().strftime(Constants.date_time_format)))),
+            'strategy': strategy,
+            'type': way_point_type,
+            'timestamp': datetime.datetime.now(),
+            'data': data
+        }
 
 
 class Signal:
@@ -182,7 +220,8 @@ class Strategy:
         # Attempt to execute function.
         try:
             # Build strategy context.
-            context = StrategyContext(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
+            context = StrategyContext(self._db, self.name, self.run_datetime, self.data_loader.data,
+                                      self._live_data_source)
             parameters = self._execution_parameters
             signals = eval('strategy_functions.{0}(context,parameters)'.format(self._execution_function))
             return self._clean_signals(signals)

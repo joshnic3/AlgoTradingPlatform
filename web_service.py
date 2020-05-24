@@ -7,7 +7,7 @@ import sys
 from flask import Flask, request
 
 from library.bootstrap import Constants
-from library.data_loader import MarketDataLoader
+from library.data_loader import MarketDataLoader, WayPointDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
 from library.portfolio import Portfolio
@@ -15,6 +15,10 @@ from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new, Job
 
 app = Flask(__name__)
+
+
+def float_to_string(value_float):
+    return '{:,.2f}'.format(value_float)
 
 
 def response(status, data=None):
@@ -60,9 +64,12 @@ def market_data():
     # Return data.
     data_loader = MarketDataLoader()
     data_loader.load_tickers(symbol, before, after)
-    data = data_loader.data['ticker'][symbol]
-    data = [(d[0].strftime(Constants.pp_time_format), d[1]) for d in data]
-    return response(200, data)
+    if MarketDataLoader.TICKER in data_loader.data:
+        data = data_loader.data[MarketDataLoader.TICKER][symbol]
+        data = [(d[0].strftime(Constants.pp_time_format), float_to_string(d[1])) for d in data]
+        return response(200, data)
+    else:
+        return response(401, 'Market data not available.')
 
 
 @app.route('/strategies')
@@ -85,12 +92,34 @@ def strategies():
         strategy_row = db.get_one_row('strategies', 'id="{0}"'.format(params['id']))
         if strategy_row is None:
             return response(400, 'Strategy does not exist.')
-        strategy_dict = query_result_to_dict([strategy_row], Constants.configs['tables']['algo_trading_platform']['strategies'])
+        strategy_dict = query_result_to_dict([strategy_row], Constants.configs['tables'][Constants.db_name]['strategies'])
         return response(200, strategy_dict)
 
     all_rows = db.query_table('strategies')
     all_rows_as_dict = query_result_to_dict(all_rows, Constants.configs['tables']['algo_trading_platform']['strategies'])
     return response(200, all_rows_as_dict)
+
+
+@app.route('/strategy_way_points')
+def strategy_way_points():
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        way_point_data_loader = WayPointDataLoader()
+        way_point_data_loader.load_way_point_time_series(params['id'])
+        if WayPointDataLoader.WAY_POINT_TIME_SERIES in way_point_data_loader.data:
+            data = way_point_data_loader.data[WayPointDataLoader.WAY_POINT_TIME_SERIES][params['id']]
+            return response(200, data)
+        else:
+            return response(401, 'No way point data found.')
+
+    return response(401, 'Strategy id required.')
 
 
 # TODO use portfolio class.
@@ -131,14 +160,14 @@ def portfolio():
                 valuations.append([row[2], row[3]])
 
         if valuations:
-            pnl = round(float(valuations[-1][1]) - float(valuations[0][1]), 2)
+            pnl = float_to_string(float(valuations[-1][1]) - float(valuations[0][1]))
         else:
             pnl = '-'
 
         data = {
             'id': portfolio_obj.id,
-            'cash': round(portfolio_obj.cash, 2),
-            'value': portfolio_obj.valuate(),
+            'cash': float_to_string(portfolio_obj.cash),
+            'value': float_to_string(portfolio_obj.valuate()),
             'historical_valuations': [historical_date_times, historical_values],
             'pnl': pnl
         }
@@ -165,6 +194,9 @@ def assets():
         exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
         portfolio_obj = Portfolio(params['id'], db)
         portfolio_obj.sync_with_exchange(exchange)
+        for asset in portfolio_obj.assets:
+            exposure_as_string = float_to_string(portfolio_obj.assets[asset][Portfolio.EXPOSURE])
+            portfolio_obj.assets[asset][Portfolio.EXPOSURE] = exposure_as_string
         return response(200, portfolio_obj.assets)
 
     return response(401, 'Portfolio id required.')
@@ -221,7 +253,7 @@ def log():
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
         if job_row is None:
             return response(401, 'Job doesnt exist.')
-        job_dict = query_result_to_dict([job_row], Constants.configs['tables']['algo_trading_platform']['jobs'])[0]
+        job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.db_name]['jobs'])[0]
         with open(job_dict['log_path'], 'r') as file:
             data = file.read().replace('\n', '<br>')
         return response(200, data)

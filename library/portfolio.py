@@ -31,8 +31,12 @@ class Portfolio:
         # Assume exposure == maximum possible loss from current position.
         data_loader = MarketDataLoader()
         data_loader.load_latest_ticker(symbol)
-        assets = portfolio.assets if portfolio else self.assets
-        return assets[symbol][Portfolio.UNITS] * data_loader.data[MarketDataLoader.LATEST_TICKER][symbol]
+        data_loader.report_warnings()
+        if MarketDataLoader.LATEST_TICKER in data_loader.data:
+            assets = portfolio.assets if portfolio else self.assets
+            return assets[symbol][Portfolio.UNITS] * data_loader.data[MarketDataLoader.LATEST_TICKER][symbol]
+        else:
+            return 0
 
     def update_db(self):
         # Update portfolio cash.
