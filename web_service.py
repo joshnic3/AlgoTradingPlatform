@@ -11,6 +11,7 @@ from library.data_loader import MarketDataLoader, WayPointDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
 from library.portfolio import Portfolio
+from library.strategy import WayPoint
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new, Job
 
@@ -19,6 +20,11 @@ app = Flask(__name__)
 
 def float_to_string(value_float):
     return '{:,.2f}'.format(value_float)
+
+
+def format_datetime_sting(datetime_string):
+    date_time = datetime.datetime.strptime(datetime_string, Constants.date_time_format)
+    return date_time.strftime(Constants.pp_time_format)
 
 
 def response(status, data=None):
@@ -66,7 +72,7 @@ def market_data():
     data_loader.load_tickers(symbol, before, after)
     if MarketDataLoader.TICKER in data_loader.data:
         data = data_loader.data[MarketDataLoader.TICKER][symbol]
-        data = [(d[0].strftime(Constants.pp_time_format), float_to_string(d[1])) for d in data]
+        data = [[d[0].strftime(Constants.pp_time_format), float_to_string(d[1])] for d in data]
         return response(200, data)
     else:
         return response(401, 'Market data not available.')
@@ -84,20 +90,30 @@ def strategies():
     # Initiate database connection.
     db = Database()
 
-    # Extract any parameters from url.
-    params = {x: request.args[x] for x in request.args if x is not None}
+    strategies_rows = db.query_table('strategies')
+    strategy_table_schema = Constants.configs['tables'][Constants.db_name]['strategies']
+    strategies_as_dict = query_result_to_dict(strategies_rows, strategy_table_schema)
+    for strategy in strategies_as_dict:
+        # Get historical valuations from way points.
+        way_point_data_loader = WayPointDataLoader()
+        way_point_data_loader.load_way_point_time_series(strategy['name'])
+        if WayPointDataLoader.WAY_POINT_TIME_SERIES in way_point_data_loader.data:
+            data = way_point_data_loader.data[WayPointDataLoader.WAY_POINT_TIME_SERIES][strategy['name']]
 
-    if 'id' in params:
-        # Get portfolio data.
-        strategy_row = db.get_one_row('strategies', 'id="{0}"'.format(params['id']))
-        if strategy_row is None:
-            return response(400, 'Strategy does not exist.')
-        strategy_dict = query_result_to_dict([strategy_row], Constants.configs['tables'][Constants.db_name]['strategies'])
-        return response(200, strategy_dict)
+            if WayPoint.VALUATION in data:
+                # Extract historical valuations.
+                valuations = [[format_datetime_sting(v[0]), float(v[1])]for v in data[WayPoint.VALUATION]]
 
-    all_rows = db.query_table('strategies')
-    all_rows_as_dict = query_result_to_dict(all_rows, Constants.configs['tables']['algo_trading_platform']['strategies'])
-    return response(200, all_rows_as_dict)
+                # Calculate 24hr pnl.
+                pnl = 5.33
+            else:
+                pnl = 0
+                valuations = None
+
+            strategy['historical_valuations'] = valuations
+            strategy['pnl'] = float_to_string(pnl)
+
+    return response(200, strategies_as_dict)
 
 
 @app.route('/strategy_way_points')
@@ -115,6 +131,10 @@ def strategy_way_points():
         way_point_data_loader.load_way_point_time_series(params['id'])
         if WayPointDataLoader.WAY_POINT_TIME_SERIES in way_point_data_loader.data:
             data = way_point_data_loader.data[WayPointDataLoader.WAY_POINT_TIME_SERIES][params['id']]
+            for date_type in data:
+                data[date_type].reverse()
+                for element in data[date_type]:
+                    element[0] = format_datetime_sting(element[0])
             return response(200, data)
         else:
             return response(401, 'No way point data found.')
@@ -122,7 +142,6 @@ def strategy_way_points():
     return response(401, 'Strategy id required.')
 
 
-# TODO use portfolio class.
 @app.route('/portfolio')
 def portfolio():
     # Returns portfolio row as dictionary for provided portfolio id.
@@ -144,32 +163,14 @@ def portfolio():
         if portfolio_row is None:
             return response(400, 'Portfolio does not exist.')
 
+        # Initiate portfolio object.
         portfolio_obj = Portfolio(params['id'], db)
 
-        # Fetch historical valuations.
-        condition = 'portfolio_id="{0}"'.format(portfolio_obj.id)
-        historical_valuations_rows = db.query_table('historical_portfolio_valuations', condition)
-        historical_date_times = [r[2] for r in historical_valuations_rows]
-        historical_values = [float(r[3]) for r in historical_valuations_rows]
-
-        # Calculate 24hr PnL.
-        twenty_four_hrs_ago = datetime.datetime.now() - datetime.timedelta(hours=24)
-        valuations = []
-        for row in historical_valuations_rows:
-            if datetime.datetime.strptime(row[2], Constants.date_time_format) > twenty_four_hrs_ago:
-                valuations.append([row[2], row[3]])
-
-        if valuations:
-            pnl = float_to_string(float(valuations[-1][1]) - float(valuations[0][1]))
-        else:
-            pnl = '-'
-
+        # Package portfolio data.
         data = {
             'id': portfolio_obj.id,
             'cash': float_to_string(portfolio_obj.cash),
             'value': float_to_string(portfolio_obj.valuate()),
-            'historical_valuations': [historical_date_times, historical_values],
-            'pnl': pnl
         }
 
         return response(200, data)

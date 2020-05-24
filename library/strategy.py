@@ -13,6 +13,7 @@ class WayPoint:
     GENERAL = 'general'
     SIGNAL = 'signal'
     TRADE = 'trade'
+    VALUATION = 'valuation'
 
     def __init__(self, way_point_id=None, strategy=None, data=None, way_point_type=None):
         self._db = Database()
@@ -42,7 +43,7 @@ class WayPoint:
             'id': str(abs(hash(strategy + datetime.datetime.now().strftime(Constants.date_time_format)))),
             'strategy': strategy,
             'type': way_point_type,
-            'timestamp': datetime.datetime.now(),
+            'timestamp': datetime.datetime.now().strftime(Constants.date_time_format),
             'data': data
         }
 

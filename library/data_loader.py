@@ -20,7 +20,7 @@ class DataLoader:
                     data_warnings = self.warnings[data_type]
                     Constants.log.warning('{}Data warning: type: {}, {}, '.format(log_prefix, data_type, data_warnings))
             else:
-                Constants.log.info('{}}No data warnings.'.format(log_prefix))
+                Constants.log.info('{}No data warnings.'.format(log_prefix))
 
 
 class WayPointDataLoader(DataLoader):
@@ -33,7 +33,7 @@ class WayPointDataLoader(DataLoader):
 
     def load_way_point_time_series(self, strategy_name):
         self.type = WayPointDataLoader.WAY_POINT_TIME_SERIES
-        self.data[self.type] = {strategy_name: []}
+        self.data[self.type] = {strategy_name: {}}
         way_point_rows = self._db.query_table('strategy_way_points', 'strategy="{}"'.format(strategy_name))
         if way_point_rows:
             # Extract time series.
@@ -42,8 +42,8 @@ class WayPointDataLoader(DataLoader):
             # Group time series by type.
             way_point_types = set([w[0] for w in way_point_time_series])
             for way_point_type in way_point_types:
-                data = {way_point_type: [w[-2:] for w in way_point_time_series if w[0] == way_point_type]}
-                self.data[self.type][strategy_name].append(data)
+                data = [[w[1], w[2]] for w in way_point_time_series if w[0] == way_point_type]
+                self.data[self.type][strategy_name][way_point_type] = data
         else:
             self.warnings[self.type] = {strategy_name: 'not_in_database'}
 
