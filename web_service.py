@@ -10,8 +10,7 @@ from library.bootstrap import Constants
 from library.data_loader import MarketDataLoader, WayPointDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
-from library.portfolio import Portfolio
-from library.strategy import WayPoint
+from library.strategy import WayPoint, Portfolio
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new, Job
 

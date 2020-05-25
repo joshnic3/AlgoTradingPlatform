@@ -1,7 +1,7 @@
 from library.bootstrap import Constants
 from library.strategy import Portfolio, Signal
 from library.data_loader import MarketDataLoader
-from library.risk_profile import RiskProfile
+from library.strategy import RiskProfile
 
 
 class ExposureManager:

@@ -4,7 +4,6 @@ import sqlite3
 
 from library.bootstrap import Constants
 from library.utilities.log import log_hr
-import library.bootstrap as script_globals
 
 
 def generate_unique_id(seed):

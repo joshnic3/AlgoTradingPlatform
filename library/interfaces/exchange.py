@@ -1,6 +1,8 @@
 import json
 import requests
 
+from library.strategy import Portfolio
+
 
 class AlpacaInterface:
 
@@ -13,7 +15,6 @@ class AlpacaInterface:
     FILLED_MEAN_PRICE = 'filled_avg_price'
     SYMBOL = 'symbol'
     UNITS = 'qty'
-
 
     def __init__(self, key_id, secret_key, simulator=False):
         if simulator:
@@ -82,3 +83,24 @@ class AlpacaInterface:
         if not results['id']:
             return None
         return results['id']
+
+
+class SimulatedExchangeInterface(AlpacaInterface):
+
+    def __init__(self, portfolio):
+        self._portfolio = portfolio
+        AlpacaInterface.__init__(self, '', '', simulator=True)
+        self._orders = []
+
+    def _request_get(self, url, params=None, data=None, except_error=False):
+        if url == self.api['CLOCK']:
+            return True
+
+        if url == self.api['ACCOUNT']:
+            return {'cash': self._portfolio.cash}
+        # Assume all orders are fully fulfilled.
+        return {}
+
+    def _create_order(self, symbol, units, side):
+        self._orders.append((symbol, units, side))
+        return {}
