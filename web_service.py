@@ -13,6 +13,7 @@ from library.interfaces.sql_database import Database, query_result_to_dict
 from library.strategy import WayPoint, Portfolio
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new, Job
+from library.utilities.authentication import public_key_from_private_key, secret_key
 
 app = Flask(__name__)
 
@@ -30,6 +31,26 @@ def response(status, data=None):
     if data:
         return app.response_class(response=json.dumps(data), status=status, mimetype='application/json')
     return app.response_class(status=status, mimetype='application/json')
+
+
+@app.route('/handshake')
+def handshake():
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'key' in params:
+        print('received private key: {}'.format(params['key']))
+        Constants.secret_key = secret_key(int(params['key']), Constants.private_key)
+        print('secret key: {}'.format(Constants.secret_key))
+
+        return response(200, str(public_key_from_private_key(Constants.private_key)))
+
+    return response(401, 'Expects public key.')
 
 
 @app.route('/exchange_open')
@@ -311,6 +332,8 @@ def parse_cmdline_args(app_name):
 if __name__ == '__main__':
     # Setup configs.
     Constants.configs = parse_cmdline_args('algo_trading_platform')
+    Constants.secret_key = None
+    Constants.private_key = 420
 
     app.run('0.0.0.0')
     app.run()

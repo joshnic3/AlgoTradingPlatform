@@ -1,7 +1,12 @@
+import datetime
 import json
+import random
+
 import requests
 
-from library.strategy import Portfolio
+from library.bootstrap import Constants
+from library.data_loader import MarketDataLoader
+from library.strategy import Portfolio, Signal
 
 
 class AlpacaInterface:
@@ -15,6 +20,7 @@ class AlpacaInterface:
     FILLED_MEAN_PRICE = 'filled_avg_price'
     SYMBOL = 'symbol'
     UNITS = 'qty'
+    CASH = 'cash'
 
     def __init__(self, key_id, secret_key, simulator=False):
         if simulator:
@@ -53,6 +59,7 @@ class AlpacaInterface:
     def is_exchange_open(self):
         data = self._request_get(self.api['CLOCK'])
         return data['is_open']
+        # return  True
 
     def get_order_data(self, order_id):
         orders = self._request_get(self.api['ORDERS'], params={"status": "all"})
@@ -73,13 +80,13 @@ class AlpacaInterface:
         return data
 
     def ask(self, symbol, units):
-        results = self._create_order(symbol, units, 'sell')
+        results = self._create_order(symbol, units, Signal.SELL)
         if not results['id']:
             return None
         return results['id']
 
     def bid(self, symbol, units):
-        results = self._create_order(symbol, units, 'buy')
+        results = self._create_order(symbol, units, Signal.BUY)
         if not results['id']:
             return None
         return results['id']
@@ -87,20 +94,47 @@ class AlpacaInterface:
 
 class SimulatedExchangeInterface(AlpacaInterface):
 
-    def __init__(self, portfolio):
+    def __init__(self, portfolio, run_datetime, market_data_loader=None):
         self._portfolio = portfolio
         AlpacaInterface.__init__(self, '', '', simulator=True)
         self._orders = []
+        self._market_data_loader = market_data_loader
+        self._run_datetime = run_datetime
+
+    def _get_simulated_price(self, symbol):
+        if self._market_data_loader:
+            self._market_data_loader.load_latest_ticker(symbol, now=self._run_datetime)
+            return self._market_data_loader.data[MarketDataLoader.LATEST_TICKER][symbol]
+        else:
+            return random.uniform(0, 200)
+
+    def _add_order(self, symbol, units, side):
+        # Assume all orders are fully fulfilled.
+        order_id = str(abs(hash(symbol + datetime.datetime.now().strftime(Constants.date_time_format))))
+        self._orders.append({
+            'id': order_id,
+            AlpacaInterface.STATUS: AlpacaInterface.FILLED_ORDER,
+            AlpacaInterface.FILLED_UNITS: str(units),
+            AlpacaInterface.ORDER_SIDE: side,
+            AlpacaInterface.FILLED_MEAN_PRICE: str(self._get_simulated_price(symbol)),
+            AlpacaInterface.SYMBOL: symbol
+        })
+        return order_id
 
     def _request_get(self, url, params=None, data=None, except_error=False):
-        if url == self.api['CLOCK']:
+        if self.api['CLOCK'] in url:
             return True
 
-        if url == self.api['ACCOUNT']:
-            return {'cash': self._portfolio.cash}
-        # Assume all orders are fully fulfilled.
-        return {}
+        if self.api['POSITIONS'] in url:
+            symbol = url.split('/')[-1]
+            units = str(self._portfolio.assets[symbol][Portfolio.UNITS])
+            return {AlpacaInterface.UNITS: units, AlpacaInterface.SYMBOL: symbol}
+
+        if self.api['ACCOUNT'] in url:
+            return {AlpacaInterface.CASH: str(self._portfolio.cash)}
+
+        if self.api['ORDERS'] in url:
+            return self._orders
 
     def _create_order(self, symbol, units, side):
-        self._orders.append((symbol, units, side))
-        return {}
+        return {'id': self._add_order(symbol, units, side)}

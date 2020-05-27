@@ -103,7 +103,7 @@ def main():
 
     # Initiate trade executor.
     job.update_phase('Proposing_trades')
-    trade_executor = TradeExecutor(db, strategy, exchange)
+    trade_executor = TradeExecutor(strategy, exchange)
 
     # Prepare trades.
     proposed_trades = trade_executor.generate_trades_from_signals(signals)

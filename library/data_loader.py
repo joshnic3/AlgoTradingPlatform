@@ -114,9 +114,10 @@ class MarketDataLoader(DataLoader):
     def load_latest_ticker(self, symbol, now=None):
         self.type = MarketDataLoader.LATEST_TICKER
         now = now if now else datetime.datetime.now()
+        now_datetime_string = now.strftime(Constants.date_time_format)
 
         # Read tick from database.
-        condition = 'symbol="{0}"'.format(symbol)
+        condition = 'symbol="{0}" AND date_time<{1}'.format(symbol, now_datetime_string)
         tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), value')
         if tick_rows[1]:
             self.data[self.type] = {symbol: float(tick_rows[1])}

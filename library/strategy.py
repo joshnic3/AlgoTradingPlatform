@@ -13,8 +13,8 @@ class WayPoint:
     TRADE = 'trade'
     VALUATION = 'valuation'
 
-    def __init__(self, way_point_id=None, strategy=None, data=None, way_point_type=None):
-        self._db = Database()
+    def __init__(self, way_point_id=None, strategy=None, data=None, way_point_type=None, db=None):
+        self._db = db if db else Database()
 
         if way_point_id:
             # Load in an existing job from database.
@@ -321,7 +321,7 @@ class RiskProfile:
 
     def _check_exposure_limit(self, portfolio):
         exposure = sum([portfolio.assets[a][Portfolio.EXPOSURE] for a in portfolio.assets])
-        exposure_overflow = exposure - self.checks[RiskProfile.EXPOSURE_LIMIT]
+        exposure_overflow = exposure - float(self.checks[RiskProfile.EXPOSURE_LIMIT])
         if exposure_overflow > 0:
             self._log_warning('Maximum exposure limit exceeded by {0}.'.format(abs(exposure_overflow)))
             return False
