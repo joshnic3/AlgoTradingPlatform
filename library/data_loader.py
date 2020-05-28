@@ -6,6 +6,8 @@ from library.interfaces.sql_database import Database, query_result_to_dict
 
 class DataLoader:
 
+    VALUE_DATA_TYPES = ['valuation']
+
     def __init__(self, db_name):
         self._db = Database(Constants.db_path, Constants.environment, name=db_name)
         self.type = None

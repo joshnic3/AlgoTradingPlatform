@@ -14,6 +14,7 @@ from library.strategy import WayPoint, Portfolio
 from library.utilities.file import parse_configs_file
 from library.utilities.job import is_script_new, Job
 from library.utilities.authentication import public_key_from_private_key, secret_key
+from library.data_loader import DataLoader
 
 app = Flask(__name__)
 
@@ -23,8 +24,10 @@ def float_to_string(value_float):
 
 
 def format_datetime_sting(datetime_string):
-    date_time = datetime.datetime.strptime(datetime_string, Constants.date_time_format)
-    return date_time.strftime(Constants.pp_time_format)
+    if datetime_string is None:
+        return None
+    date_time = datetime.datetime.strptime(datetime_string, Constants.DATETIME_FORMAT)
+    return date_time.strftime(Constants.PP_DATETIME_FORMAT)
 
 
 def response(status, data=None):
@@ -76,9 +79,8 @@ def tick_capture_job():
     # Initiate database connection.
     db = Database()
     start_time_string, job_id = db.get_one_row('jobs', 'script="{}"'.format('tick_capture'), 'max(start_time), id')
-    start_time = datetime.datetime.strptime(start_time_string, Constants.date_time_format)
     data = {
-        'start_time': start_time.strftime(Constants.pp_time_format),
+        'start_time': format_datetime_sting(start_time_string),
         'job_id': job_id
     }
 
@@ -117,7 +119,7 @@ def market_data():
     data_loader.load_tickers(symbol, before, after)
     if MarketDataLoader.TICKER in data_loader.data:
         data = data_loader.data[MarketDataLoader.TICKER][symbol]
-        data = [[d[0].strftime(Constants.pp_time_format), float_to_string(d[1])] for d in data]
+        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_string(d[1])] for d in data]
         return response(200, data)
     else:
         return response(401, 'Market data not available.')
@@ -136,7 +138,7 @@ def strategies():
     db = Database()
 
     strategies_rows = db.query_table('strategies')
-    strategy_table_schema = Constants.configs['tables'][Constants.db_name]['strategies']
+    strategy_table_schema = Constants.configs['tables'][Constants.DB_NAME]['strategies']
     strategies_as_dict = query_result_to_dict(strategies_rows, strategy_table_schema)
     for strategy in strategies_as_dict:
         # Get historical valuations from way points.
@@ -147,7 +149,7 @@ def strategies():
 
             if WayPoint.VALUATION in data:
                 # Extract historical valuations.
-                valuations = [[datetime.datetime.strptime(v[0], Constants.date_time_format), float(v[1])] for v in data[WayPoint.VALUATION]]
+                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[WayPoint.VALUATION]]
 
                 # Calculate 24hr pnl.
                 now = datetime.datetime.now()
@@ -156,7 +158,7 @@ def strategies():
 
                 # Format data.
                 formatted_pnl = float_to_string(sum(twenty_four_hour_valuations)/len(twenty_four_hour_valuations))
-                formatted_valuations = [[v[0].strftime(Constants.pp_time_format), v[1]] for v in valuations]
+                formatted_valuations = [[v[0].strftime(Constants.PP_DATETIME_FORMAT), v[1]] for v in valuations]
             else:
                 formatted_pnl = 0
                 formatted_valuations = None
@@ -185,6 +187,8 @@ def strategy_way_points():
             for date_type in data:
                 data[date_type].reverse()
                 for element in data[date_type]:
+                    if date_type in DataLoader.VALUE_DATA_TYPES:
+                        element[1] = float_to_string(float(element[1]))
                     element[0] = format_datetime_sting(element[0])
             return response(200, data)
         else:
@@ -219,9 +223,9 @@ def portfolio():
 
         # Package portfolio data.
         data = {
-            'id': portfolio_obj.id,
-            'cash': float_to_string(portfolio_obj.cash),
-            'value': float_to_string(portfolio_obj.valuate()),
+            Portfolio.ID: portfolio_obj.id,
+            Portfolio.CASH: float_to_string(portfolio_obj.cash),
+            Portfolio.VALUE: float_to_string(portfolio_obj.valuate()),
         }
 
         return response(200, data)
@@ -268,13 +272,12 @@ def job():
 
     if 'id' in params:
         job_obj = Job(job_id=params['id'])
-        start_time_datetime = datetime.datetime.strptime(job_obj.start_time, Constants.date_time_format)
 
         data = {
             'name': job_obj.name,
             'script': job_obj.script,
             'log_path': job_obj.log_path,
-            'start_time': start_time_datetime.strftime(Constants.pp_time_format),
+            'start_time': format_datetime_sting(job_obj.start_time),
             'elapsed_time': job_obj.elapsed_time,
             'finish_state': job_obj.STATUS_MAP[int(job_obj.finish_state)],
             'version': '{0}{1}'.format(job_obj.version, ' (NEW)' if is_script_new(job_obj.script) else ''),
@@ -305,7 +308,7 @@ def log():
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
         if job_row is None:
             return response(401, 'Job doesnt exist.')
-        job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.db_name]['jobs'])[0]
+        job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.DB_NAME]['jobs'])[0]
         with open(job_dict['log_path'], 'r') as file:
             data = file.read().replace('\n', '<br>')
         return response(200, data)
@@ -313,27 +316,13 @@ def log():
     return response(401, 'Job id required.')
 
 
-def parse_cmdline_args(app_name):
-    parser = optparse.OptionParser()
-    parser.add_option('-e', '--environment', dest="environment")
-    parser.add_option('-r', '--root_path', dest="root_path")
-    parser.add_option('-j', '--job_name', dest="job_name", default=None)
-
-    options, args = parser.parse_args()
-    return parse_configs_file({
-        "app_name": app_name,
-        "environment": options.environment.lower(),
-        "root_path": options.root_path,
-        "job_name": options.job_name,
-        "script_name": str(os.path.basename(sys.argv[0])).split('.')[0],
-    })
-
-
 if __name__ == '__main__':
-    # Setup configs.
-    Constants.configs = parse_cmdline_args('algo_trading_platform')
+    # Setup parse options, imitate global constants and logs.
+    Constants.parse_arguments(configs_file_name=Constants.APP_NAME)
+
+    # Temp
     Constants.secret_key = None
     Constants.private_key = 420
 
+    # Start server.
     app.run('0.0.0.0')
-    app.run()

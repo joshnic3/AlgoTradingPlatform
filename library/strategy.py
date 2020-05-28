@@ -245,6 +245,7 @@ class Portfolio:
     ASSETS = 'assets'
     PORTFOLIOS = 'portfolios'
     CASH = 'cash'
+    VALUE = 'value'
 
     def __init__(self, portfolio_id, db):
         self._db = db
@@ -409,20 +410,20 @@ def parse_strategy_setup_from_xml(xml_path):
     root = get_xml_root(xml_path)
 
     # Check xml has setup elements.
-    if not root.findall(Constants.xml.setup):
+    if not root.findall(Constants.xml.setup.root):
         return None
 
     # Extract jobs.
     job_attributes = ['name', 'script', 'schedule']
-    jobs = [get_xml_element_attributes(j, require=job_attributes) for j in root.findall(Constants.xml.job)]
+    jobs = [get_xml_element_attributes(j, require=job_attributes) for j in root.findall(Constants.xml.setup.job)]
 
     # Extract cash.
-    cash_elements = [t for t in root.findall(Constants.xml.cash)]
+    cash_elements = [t for t in root.findall(Constants.xml.setup.cash)]
     cash = sum([float(get_xml_element_attribute(c, 'value', required=True)) for c in cash_elements])
 
     # Extract assets.
     asset_attributes = ['symbol']
-    assets = [get_xml_element_attributes(a, require=asset_attributes) for a in root.findall(Constants.xml.asset)]
+    assets = [get_xml_element_attributes(a, require=asset_attributes) for a in root.findall(Constants.xml.setup.asset)]
 
     # Return setup as dict.
     return {

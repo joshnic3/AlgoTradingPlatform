@@ -39,6 +39,7 @@ class Constants:
     _RELATIVE_DB_PATH = 'data'
     _RELATIVE_CONFIGS_PATH = 'configs'
     _RELATIVE_LOGS_PATH = 'logs'
+    _RELATIVE_STRATEGIES_PATH = 'strategies'
     _DEVELOPMENT_ENVIRONMENT = 'dev'
     _CONFIG_FILE_EXTENSION = 'json'
     _MANUAL_RUN = 'manual_run'
@@ -48,12 +49,18 @@ class Constants:
     PP_DATETIME_FORMAT = '%H:%M.%S'
     APP_NAME = 'algo_trading_platform'
     DB_NAME = APP_NAME
+    RESOURCE_DIRS = [
+        _RELATIVE_DB_PATH,
+        _RELATIVE_CONFIGS_PATH,
+        _RELATIVE_LOGS_PATH,
+        _RELATIVE_STRATEGIES_PATH
+    ]
 
     def __init__(self):
         # Initiate global objects
         self.log = None
         self.xml = None
-        self.configs = None
+        self.configs = {}
 
         # Initiate global constants.
         self.environment = None
@@ -131,6 +138,9 @@ class XMLNameSpace:
     def __init__(self, root, path=None):
         self.root = root
         self.path = path
+
+    def __repr__(self):
+        return self.root
 
 
 class StrategySetupXMLNameSpace(XMLNameSpace):

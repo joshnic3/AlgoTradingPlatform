@@ -46,11 +46,11 @@ class Job:
         if job_id:
             # Load in an existing job from database.
             job_row = self._db.get_one_row('jobs', 'id="{0}"'.format(job_id))
-            job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.db_name]['jobs'])[0]
+            job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.DB_NAME]['jobs'])[0]
 
             # Read in job phase.
             phase_row = self._db.query_table('phases', 'job_id="{0}"'.format(job_dict['id']))
-            phase_dict = query_result_to_dict(phase_row, Constants.configs['tables'][Constants.db_name]['phases'])[-1]
+            phase_dict = query_result_to_dict(phase_row, Constants.configs['tables'][Constants.DB_NAME]['phases'])[-1]
             job_dict['phase_name'] = phase_dict['name']
 
         else:
