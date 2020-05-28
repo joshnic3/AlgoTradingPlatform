@@ -90,8 +90,9 @@ def main():
 
     # Update save portfolio to database and create way point.
     trade_executor.update_portfolio_db()
-    set_way_points(strategy.name, ', '.join([str(s) for s in signals]), ', '.join(str(processed_trades)),
-                   trade_executor.portfolio.valuate())
+    processed_trades_string = ', '.join(processed_trades)
+    signals_string = ', '.join([str(s) for s in signals])
+    set_way_points(strategy.name, signals_string, processed_trades_string, trade_executor.portfolio.valuate())
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))

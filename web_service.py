@@ -157,7 +157,10 @@ def strategies():
                 twenty_four_hour_valuations = [d[1] for d in valuations if twenty_four_hrs_ago < d[0] < now]
 
                 # Format data.
-                formatted_pnl = float_to_string(sum(twenty_four_hour_valuations)/len(twenty_four_hour_valuations))
+                if twenty_four_hour_valuations:
+                    formatted_pnl = float_to_string(sum(twenty_four_hour_valuations)/len(twenty_four_hour_valuations))
+                else:
+                    formatted_pnl = '-'
                 formatted_valuations = [[v[0].strftime(Constants.PP_DATETIME_FORMAT), v[1]] for v in valuations]
             else:
                 formatted_pnl = 0
