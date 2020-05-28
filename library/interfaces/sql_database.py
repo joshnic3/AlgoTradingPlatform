@@ -3,7 +3,7 @@ import datetime
 import sqlite3
 
 from library.bootstrap import Constants
-from library.utilities.log import log_hr
+from library.bootstrap import log_hr
 
 
 def generate_unique_id(seed):
@@ -36,11 +36,11 @@ class Database:
     EMPTY_PLACEHOLDER = '-'
 
     def __init__(self, db_root_path=None, environment=None, name=None):
-        self._name = name if name else Constants.db_name
-        self._environment = environment if environment else Constants.configs['environment']
+        self._name = name if name else Constants.DB_NAME
+        self._environment = environment if environment else Constants.environment
 
         # Check database file exists.
-        db_root_path = db_root_path if db_root_path else Constants.configs['db_root_path']
+        db_root_path = db_root_path if db_root_path else Constants.db_path
         self.db_file_path = os.path.join(db_root_path, '{0}.db'.format(self._name))
         if not os.path.exists(self.db_file_path):
             raise Exception('Database not found in path: {}'.format(db_root_path))
@@ -123,4 +123,4 @@ class Database:
         if logger is None:
             logger = Constants.log
         logger.info('Connected to database: {0}'.format(self.__str__()))
-        log_hr(logger)
+        log_hr()

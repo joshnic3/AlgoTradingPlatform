@@ -7,6 +7,12 @@ from library.utilities.xml import get_xml_root, get_xml_element_attribute, get_x
 from library.interfaces.sql_database import Database, query_result_to_dict
 
 
+def set_way_points(strategy_name, signals, trades, valuation):
+    WayPoint(strategy=strategy_name, data=float(valuation), way_point_type=WayPoint.VALUATION)
+    WayPoint(strategy=strategy_name, data=signals, way_point_type=WayPoint.SIGNAL)
+    WayPoint(strategy=strategy_name, data=trades, way_point_type=WayPoint.TRADE)
+
+
 class WayPoint:
     GENERAL = 'general'
     SIGNAL = 'signal'
@@ -19,7 +25,7 @@ class WayPoint:
         if way_point_id:
             # Load in an existing job from database.
             way_point_row = self._db.get_one_row('strategy_way_points', 'id="{0}"'.format(way_point_id))
-            way_point_table_schema = Constants.configs['tables'][Constants.db_name]['strategy_way_points']
+            way_point_table_schema = Constants.configs['tables'][Constants.DB_NAME]['strategy_way_points']
             way_point_dict = query_result_to_dict([way_point_row], way_point_table_schema)[0]
         else:
             if strategy is None or data is None:
@@ -38,10 +44,10 @@ class WayPoint:
     def _create_way_point_dict(way_point_type, strategy, data):
         way_point_type = way_point_type if way_point_type else WayPoint.GENERAL
         return {
-            'id': str(abs(hash(strategy + datetime.datetime.now().strftime(Constants.date_time_format)))),
+            'id': str(abs(hash(strategy + datetime.datetime.now().strftime(Constants.DATETIME_FORMAT)))),
             'strategy': strategy,
             'type': way_point_type,
-            'timestamp': datetime.datetime.now().strftime(Constants.date_time_format),
+            'timestamp': datetime.datetime.now().strftime(Constants.DATETIME_FORMAT),
             'data': data
         }
 
@@ -69,17 +75,17 @@ class Signal:
 
     def sell(self, symbol, price):
         self.symbol = symbol
-        self.signal = Signal.SELL
+        self.signal = self.SELL
         self.target_value = price
 
     def buy(self, symbol, price):
         self.symbol = symbol
-        self.signal = Signal.BUY
+        self.signal = self.BUY
         self.target_value = price
 
     def hold(self, symbol):
         self.symbol = symbol
-        self.signal = Signal.HOLD
+        self.signal = self.HOLD
         self.target_value = None
 
 
@@ -244,21 +250,22 @@ class Portfolio:
         self._db = db
 
         # Load portfolio and asset data.
-        portfolio_row = self._db.get_one_row(Portfolio.PORTFOLIOS, '{}="{}"'.format(Portfolio.ID, portfolio_id))
-        portfolios_schema = Constants.configs['tables'][Constants.db_name][Portfolio.PORTFOLIOS]
+        portfolio_row = self._db.get_one_row(self.PORTFOLIOS, '{}="{}"'.format(self.ID, portfolio_id))
+        portfolios_schema = Constants.configs['tables'][Constants.DB_NAME][self.PORTFOLIOS]
         portfolio_dict = query_result_to_dict([portfolio_row], portfolios_schema)[0]
-        asset_rows = self._db.query_table(Portfolio.ASSETS, 'portfolio_id="{0}"'.format(portfolio_dict[Portfolio.ID]))
+        asset_rows = self._db.query_table(self.ASSETS, 'portfolio_id="{0}"'.format(portfolio_dict[self.ID]))
 
         self.id = portfolio_dict[Portfolio.ID]
-        self.assets = {r[2]: {Portfolio.SYMBOL: r[2], Portfolio.UNITS: int(r[3]), Portfolio.EXPOSURE: float(r[4])}
+        self.assets = {r[2]: {self.SYMBOL: r[2], Portfolio.UNITS: int(r[3]), self.EXPOSURE: float(r[4])}
                        for r in asset_rows}
-        self.cash = float(portfolio_dict[Portfolio.CASH])
+        self.cash = float(portfolio_dict[self.CASH])
 
     def calculate_exposure(self, symbol, portfolio=None):
         # Assume exposure == maximum possible loss from current position.
         data_loader = MarketDataLoader()
         data_loader.load_latest_ticker(symbol)
-        data_loader.report_warnings()
+        if Constants.debug:
+            data_loader.report_warnings()
         if MarketDataLoader.LATEST_TICKER in data_loader.data:
             assets = portfolio.assets if portfolio else self.assets
             return assets[symbol][Portfolio.UNITS] * data_loader.data[MarketDataLoader.LATEST_TICKER][symbol]
@@ -267,36 +274,36 @@ class Portfolio:
 
     def update_db(self):
         # Update portfolio cash.
-        condition = '{}="{}"'.format(Portfolio.ID, self.id)
-        self._db.update_value(Portfolio.PORTFOLIOS, Portfolio.CASH, self.cash, condition)
+        condition = '{}="{}"'.format(self.ID, self.id)
+        self._db.update_value(self.PORTFOLIOS, self.CASH, self.cash, condition)
 
         # Update assets.
         for symbol in self.assets:
-            units = int(self.assets[symbol][Portfolio.UNITS])
-            self._db.update_value(Portfolio.ASSETS, Portfolio.UNITS, units, '{}="{}"'.format(Portfolio.SYMBOL, symbol))
+            units = int(self.assets[symbol][self.UNITS])
+            self._db.update_value(self.ASSETS, self.UNITS, units, '{}="{}"'.format(self.SYMBOL, symbol))
 
             # Calculate and update exposure.
             condition = 'symbol="{}"'.format(symbol)
-            self._db.update_value(Portfolio.ASSETS, Portfolio.EXPOSURE, self.calculate_exposure(symbol), condition)
+            self._db.update_value(self.ASSETS, self.EXPOSURE, self.calculate_exposure(symbol), condition)
 
     def sync_with_exchange(self, exchange):
         # Not sure this works, atleast not when called from webservice/
         # Sync weighted cash value for strategy portfolio.
-        cash = exchange.get_cash()
-        if cash:
-            self.cash = cash
-        else:
-            raise Exception('Could not sync portfolio with exchange.')
+        # cash = exchange.get_cash()
+        # if cash:
+        #     self.cash = cash
+        # else:
+        #     raise Exception('Could not sync portfolio with exchange.')
 
         # Sync with exchange too.
         for symbol in self.assets:
             asset = self.assets[symbol]
-            position = exchange.get_position(symbol=asset[Portfolio.SYMBOL])
+            position = exchange.get_position(symbol=asset[self.SYMBOL])
             if position and 'qty' in position:
                 asset[Portfolio.UNITS] = int(position['qty'])
             else:
-                asset[Portfolio.UNITS] = 0
-            asset[Portfolio.EXPOSURE] = self.calculate_exposure(asset[Portfolio.SYMBOL])
+                asset[self.UNITS] = 0
+            asset[self.EXPOSURE] = self.calculate_exposure(asset[self.SYMBOL])
 
     def valuate(self):
         total_asset_value = sum([self.calculate_exposure(s) for s in self.assets])
@@ -313,7 +320,7 @@ class RiskProfile:
     LIQUIDITY_LIMIT = 'min_liquidity'
 
     def __init__(self, profile_dict):
-        self.checks = profile_dict[RiskProfile.CHECKS]
+        self.checks = profile_dict[self.CHECKS]
 
     @staticmethod
     def _log_warning(text):
@@ -321,7 +328,7 @@ class RiskProfile:
 
     def _check_exposure_limit(self, portfolio):
         exposure = sum([portfolio.assets[a][Portfolio.EXPOSURE] for a in portfolio.assets])
-        exposure_overflow = exposure - float(self.checks[RiskProfile.EXPOSURE_LIMIT])
+        exposure_overflow = exposure - float(self.checks[self.EXPOSURE_LIMIT])
         if exposure_overflow > 0:
             self._log_warning('Maximum exposure limit exceeded by {0}.'.format(abs(exposure_overflow)))
             return False
@@ -332,10 +339,10 @@ class RiskProfile:
 
     def assess_portfolio(self, portfolio):
         passes = True
-        if RiskProfile.EXPOSURE_LIMIT in self.checks and not self._check_exposure_limit(portfolio):
+        if self.EXPOSURE_LIMIT in self.checks and not self._check_exposure_limit(portfolio):
             passes = False
 
-        if RiskProfile.LIQUIDITY_LIMIT in self.checks and not self._check_liquidity_limit(portfolio):
+        if self.LIQUIDITY_LIMIT in self.checks and not self._check_liquidity_limit(portfolio):
             passes = False
 
         return passes
@@ -349,7 +356,7 @@ def parse_strategy_from_xml(xml_path, return_object=False, db=None):
     strategy_name = get_xml_element_attribute(root, 'name', required=True).lower()
 
     # Extract execution options.
-    execution_element = root.findall(Constants.xml.execution)[0]
+    execution_element = root.findall(Constants.xml.execution.root)[0]
     execution_options_str = get_xml_element_attribute(execution_element, 'options')
     execution_options = [o.lower() for o in execution_options_str.split(',')] if execution_options_str else None
 
@@ -358,22 +365,23 @@ def parse_strategy_from_xml(xml_path, return_object=False, db=None):
     run_datetime = datetime.datetime.strftime(run_datetime_str, Constants.date_time_format) if run_datetime_str else datetime.datetime.now()
 
     # Extract function name.
-    function = [t for t in root.findall(Constants.xml.function)][0]
+    function = [t for t in root.findall(Constants.xml.execution.function)][0]
     function = get_xml_element_attribute(function, 'name', required=True)
 
     # Parse parameters. {key: value}
-    parameter_elements = [t for t in root.findall(Constants.xml.parameter)]
+    parameter_elements = [t for t in root.findall(Constants.xml.execution.parameter)]
     parameters = {i['key']: i['value'] for i in [get_xml_element_attributes(e) for e in parameter_elements]}
 
     # Parse risk profile. {check name: check_threshold}
-    check_elements = [t for t in root.findall(Constants.xml.check)]
+    check_elements = [t for t in root.findall(Constants.xml.execution.check)]
     check_attributes = [get_xml_element_attributes(e) for e in check_elements]
     risk_profile_dict = {RiskProfile.CHECKS: {a[RiskProfile.CHECK]: a[RiskProfile.THRESHOLD] for a in check_attributes}}
 
     # Extract data requirements.
     # Extract ticker requirements.
     ticker_attributes = ['symbol']
-    tickers = [get_xml_element_attributes(t, require=ticker_attributes) for t in root.findall(Constants.xml.ticker)]
+    tickers = [get_xml_element_attributes(t, require=ticker_attributes) for t in root.findall(
+        Constants.xml.data_requirements.ticker)]
     for ticker in tickers:
         ticker['type'] = MarketDataLoader.TICKER
     data_requirements = tickers

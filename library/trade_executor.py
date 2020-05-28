@@ -61,10 +61,13 @@ class TradeExecutor:
         executed_trade_ids = []
         for trade in requested_trades:
             signal, symbol, units, target_value = trade
-            if signal == Signal.SELL:
-                executed_trade_ids.append(self.exchange.ask(symbol, units))
-            if signal == Signal.BUY:
-                executed_trade_ids.append(self.exchange.bid(symbol, units))
+            if units:
+                if signal == Signal.SELL:
+                    executed_trade_ids.append(self.exchange.ask(symbol, units))
+                if signal == Signal.BUY:
+                    executed_trade_ids.append(self.exchange.bid(symbol, units))
+            else:
+                Constants.log.warning('Rejecting invalid trade.'.format(trade))
         return executed_trade_ids
 
     def process_executed_trades(self, executed_trade_ids, suppress_log=False):

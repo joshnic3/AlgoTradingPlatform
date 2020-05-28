@@ -7,7 +7,7 @@ from library.interfaces.sql_database import Database, query_result_to_dict
 class DataLoader:
 
     def __init__(self, db_name):
-        self._db = Database(Constants.configs['db_root_path'], Constants.configs['environment'], name=db_name)
+        self._db = Database(Constants.db_path, Constants.environment, name=db_name)
         self.type = None
         self.data = {}
         self.warnings = {}
@@ -84,7 +84,7 @@ class MarketDataLoader(DataLoader):
         warnings = []
         for tick_row in tick_rows:
             tick_dict = query_result_to_dict([tick_row], Constants.configs['tables'][MarketDataLoader.DB_NAME]['ticks'])[0]
-            tick_datetime = datetime.datetime.strptime(tick_dict['date_time'], Constants.date_time_format)
+            tick_datetime = datetime.datetime.strptime(tick_dict['date_time'], Constants.DATETIME_FORMAT)
             tick_value = float(tick_dict['value'])
             ticks_time_series.append((tick_datetime, tick_value))
 
@@ -97,8 +97,8 @@ class MarketDataLoader(DataLoader):
 
     def load_tickers(self, symbol, before, after):
         self.type = MarketDataLoader.TICKER
-        before = datetime.datetime.strftime(before, Constants.date_time_format)
-        after = datetime.datetime.strftime(after, Constants.date_time_format)
+        before = datetime.datetime.strftime(before, Constants.DATETIME_FORMAT)
+        after = datetime.datetime.strftime(after, Constants.DATETIME_FORMAT)
         data, warnings = self._load_ticks(symbol, before, after)
         if data:
             if self.type in self.data:
@@ -114,7 +114,7 @@ class MarketDataLoader(DataLoader):
     def load_latest_ticker(self, symbol, now=None):
         self.type = MarketDataLoader.LATEST_TICKER
         now = now if now else datetime.datetime.now()
-        now_datetime_string = now.strftime(Constants.date_time_format)
+        now_datetime_string = now.strftime(Constants.DATETIME_FORMAT)
 
         # Read tick from database.
         condition = 'symbol="{0}" AND date_time<{1}'.format(symbol, now_datetime_string)

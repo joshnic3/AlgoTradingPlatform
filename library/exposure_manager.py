@@ -32,6 +32,10 @@ class ExposureManager:
 
         # Calculate common for values asset.
         units_held = self._portfolio.assets[signal.symbol][Portfolio.UNITS]
+        if units_held < 0:
+            Constants.log.warning('Portfolio has negative units of "{}", defaulting trade to 0 units. '.format(
+                signal.symbol))
+            return 0
         exposure = self._portfolio.assets[signal.symbol][Portfolio.EXPOSURE]
 
         # If portfolio is over exposed sell as much as you can to get under the limit.

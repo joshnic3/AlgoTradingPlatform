@@ -2,7 +2,7 @@ import datetime
 
 from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
-from library.utilities.log import log_hr
+from library.bootstrap import log_hr
 
 
 def get_run_count(db, script_name, version=None):
@@ -75,25 +75,25 @@ class Job:
 
     @staticmethod
     def _create_job_dict(log_path):
-        if Constants.configs['job_name']:
-            name = Constants.configs['job_name']
+        if Constants.job_name:
+            name = Constants.job_name
         else:
-            name = '{0}_manual_run'.format(Constants.configs['script_name'])
+            name = '{0}_manual_run'.format(Constants.script)
         return {
-            'id': str(abs(hash(name + datetime.datetime.now().strftime(Constants.date_time_format)))),
+            'id': str(abs(hash(name + datetime.datetime.now().strftime(Constants.DATETIME_FORMAT)))),
             'name': name.lower(),
-            'script': Constants.configs['script_name'],
+            'script': Constants.script,
             'version': Constants.configs['version'],
             'log_path': log_path,
             'elapsed_time': None,
             'finish_state': None,
-            'start_time': datetime.datetime.now().strftime(Constants.date_time_format),
+            'start_time': datetime.datetime.now().strftime(Constants.DATETIME_FORMAT),
             'phase_name': None
         }
 
     def _add_phase(self, name):
         phase_id = str(abs(hash(name + self.id)))
-        date_time = datetime.datetime.now().strftime(Constants.date_time_format)
+        date_time = datetime.datetime.now().strftime(Constants.DATETIME_FORMAT)
         self._db.insert_row('phases', [phase_id, self.id, date_time, name])
         return phase_id
 
@@ -101,7 +101,7 @@ class Job:
         if logger is None:
             logger = Constants.log
         logger.info('Starting job: {0}'.format(self.id))
-        log_hr(logger)
+        log_hr()
 
     def update_phase(self, phase):
         self.phase_name = phase.replace(' ', '_').upper()
@@ -120,7 +120,7 @@ class Job:
 
         # Update job.
         start_time = self._db.get_one_row('phases', 'job_id="{}" AND name="{}"'.format(self.id, Job.FIRST_PHASE))[2]
-        start_time = datetime.datetime.strptime(start_time, Constants.date_time_format)
+        start_time = datetime.datetime.strptime(start_time, Constants.DATETIME_FORMAT)
         run_time = round((datetime.datetime.now() - start_time).total_seconds(), 3)
         self._db.update_value('jobs', 'elapsed_time', run_time, 'id="{0}"'.format(self.id))
         self._db.update_value('jobs', 'finish_state', status, 'id="{0}"'.format(self.id))

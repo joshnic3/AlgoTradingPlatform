@@ -38,7 +38,7 @@ class TickerDataSource:
         return parse_wildcards(AlphaVantageAPI.URL_TEMPLATE, wildcards)
 
     def _call_api(self, url):
-        if Constants.configs['debug']:
+        if Constants.debug:
             Constants.log.warning()
 
         results = requests.get(url)
