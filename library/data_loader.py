@@ -85,8 +85,9 @@ class MarketDataLoader(DataLoader):
         for tick_row in tick_rows:
             tick_dict = query_result_to_dict([tick_row], Constants.configs['tables'][MarketDataLoader.DB_NAME]['ticks'])[0]
             tick_datetime = datetime.datetime.strptime(tick_dict['date_time'], Constants.DATETIME_FORMAT)
-            tick_value = float(tick_dict['value'])
-            ticks_time_series.append((tick_datetime, tick_value))
+            tick_value = float(tick_dict['price'])
+            tick_volume = int(tick_dict['volume'])
+            ticks_time_series.append((tick_datetime, tick_value, tick_volume))
 
             # Carry out any data checks.
             if stale_scope and self._staleness(ticks_time_series, scope=int(stale_scope)):

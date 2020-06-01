@@ -7,6 +7,14 @@ from library.interfaces.sql_database import Database
 from library.utilities.job import Job
 from library.utilities.xml import get_xml_root, get_xml_element_attribute
 from library.data_loader import MarketDataLoader
+from library.utilities.onboarding import generate_unique_id
+
+
+def ticker_checks(ticker):
+    #  TODO Test this is working.
+    if 'stale_tick_limit' in ticker:
+        pass
+    return []
 
 
 def main():
@@ -23,39 +31,49 @@ def main():
 
     # Parse subscriptions file.
     job.update_phase('parsing subscriptions')
-    ticks = []
+    subscriptions = []
     for tick_requirement in get_xml_root(Constants.xml.path):
         symbol = get_xml_element_attribute(tick_requirement, 'symbol', required=True)
         stale_tick_limit = get_xml_element_attribute(tick_requirement, 'stale_tick_limit')
         if stale_tick_limit:
-            ticks.append({'symbol': symbol.upper(), 'stale_tick_limit': int(stale_tick_limit)})
+            subscriptions.append({'symbol': symbol.upper(), 'stale_tick_limit': int(stale_tick_limit)})
         else:
-            ticks.append({'symbol': symbol.upper()})
-    Constants.log.info('Loaded {0} required tickers.'.format(len(ticks)))
+            subscriptions.append({'symbol': symbol.upper()})
+    Constants.log.info('Loaded {0} required tickers.'.format(len(subscriptions)))
 
     # Load data.
     job.update_phase('requesting data')
     ticker_data_source = TickerDataSource()
     warnings = 0
-    for tick in ticks:
-        data_source_data = ticker_data_source.request_quote(tick['symbol'])
+    for ticker in subscriptions:
+        data_source_data = ticker_data_source.request_quote(ticker[TickerDataSource.SYMBOL])
         if data_source_data:
-            tick['price'] = data_source_data[TickerDataSource.PRICE]
-            tick['volume'] = data_source_data[TickerDataSource.VOLUME]
+            # Add data to ticker dictionary.
+            ticker['price'] = data_source_data[TickerDataSource.PRICE]
+            ticker['volume'] = data_source_data[TickerDataSource.VOLUME]
 
-            #  TODO Test this is working.
-            if 'stale_tick_limit' in tick:
-                db.insert_row('data_warnings', [0, 'tick', 'stale_ticker', tick['symbol']])
+            # Carry out checks on ticker.
+            ticker_warnings = ticker_checks(ticker)
 
             # Save tick to database.
-            now = datetime.datetime.strftime(datetime.datetime.now(), Constants.DATETIME_FORMAT)
-            db.insert_row('ticks', [0, now, tick['symbol'], tick['price']])
+            run_time_string = Constants.run_time.strftime(Constants.DATETIME_FORMAT)
+            db.insert_row('ticks', [generate_unique_id(ticker['symbol'] + run_time_string),
+                                    run_time_string,
+                                    ticker['symbol'],
+                                    ticker['price'],
+                                    ticker['volume']
+                                    ]
+                          )
 
             # Log ticks.
-            Constants.log.info('symbol: {0}, price: {1}, volume: {2}'.format(tick['symbol'], tick['price'], tick['volume']))
+            Constants.log.info('symbol: {0}, price: {1}, volume: {2}'.format(ticker['symbol'], ticker['price'], ticker['volume']))
         else:
-            db.insert_row('data_warnings', [0, 'tick', 'no_data', tick['symbol']])
-            Constants.log.info('Could not get data for ticker {0}'.format(tick['symbol']))
+            ticker_warnings = ['no_data']
+
+        for warning_type in ticker_warnings:
+            warning_id = generate_unique_id(ticker['symbol'] + Constants.run_time.strftime(Constants.DATETIME_FORMAT))
+            db.insert_row('data_warnings', [warning_id, 'tick', warning_type, ticker['symbol']])
+            Constants.log.info('Could not get data for ticker {0}'.format(ticker['symbol']))
             warnings += 1
 
     if warnings:
