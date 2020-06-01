@@ -1,7 +1,7 @@
 from library.bootstrap import Constants
-from library.strategy import Portfolio, Signal
+from library.strategy.strategy import Portfolio, Signal
 from library.data_loader import MarketDataLoader
-from library.strategy import RiskProfile
+from library.strategy.strategy import RiskProfile
 
 
 class ExposureManager:
@@ -53,7 +53,6 @@ class ExposureManager:
                 self._update_portfolio_units(signal.symbol, -units)
                 Constants.log.warning('Exposure Manager: Portfolio over exposed, selling {0} {1} units to compensate.'
                                       .format(units, signal.symbol))
-                return units
 
         # Balance exposure over multiple assets. Will limit to selling now. I want to be in full control of buying.
         if signal.signal == Signal.SELL and portfolio_exposure > portfolio_mean_exposure:
@@ -69,9 +68,12 @@ class ExposureManager:
             # Update object instance of portfolio.
             self._update_portfolio_units(signal.symbol, -units)
 
-            if units != self._default_units:
+            if units > self._default_units:
                 Constants.log.info('Exposure Manager: Selling more units ({0}) of {1} to balance exposure'
                                    .format(units, signal.symbol))
-            return units
 
-        return self._default_units
+        # If we have got to this point we want to trade at least one/default unit(s).
+        if units < self._default_units:
+            return self._default_units
+
+        return units

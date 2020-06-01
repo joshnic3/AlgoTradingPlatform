@@ -3,7 +3,8 @@ import sys
 from library.bootstrap import Constants
 from library.interfaces.exchange import AlpacaInterface as Alpaca
 from library.interfaces.sql_database import Database
-from library.strategy import parse_strategy_from_xml, set_way_points
+from library.strategy.strategy import parse_strategy_from_xml
+from library.strategy.bread_crumbs import set_bread_crumb
 from library.trade_executor import TradeExecutor
 from library.utilities.job import Job
 
@@ -40,13 +41,13 @@ def main():
 
     if signals is None:
         # There was a calculation error. This is fatal.
-        set_way_points(strategy.name, '-', '-', strategy.portfolio.valuate())
+        set_bread_crumb(strategy, '-', '-', strategy.portfolio.valuate())
         job.finished(condition='calculation error', status=Job.FAILED)
         return Job.FAILED
 
     if not signals:
         # Script cannot go any further from this point, but should not error.
-        set_way_points(strategy.name, '-', '-', strategy.portfolio.valuate())
+        set_bread_crumb(strategy, '-', '-', strategy.portfolio.valuate())
         job.finished(condition='no signals')
         return Job.WARNINGS
 
@@ -63,7 +64,7 @@ def main():
         raise Exception('Mode "{0}" is not valid.'.format(Constants.configs[MODE]))
     if not exchange.is_exchange_open():
         # Script cannot go any further from this point, but should not error.
-        set_way_points(strategy.name, ', '.join([str(s) for s in signals]), '-', strategy.portfolio.valuate())
+        set_bread_crumb(strategy, ', '.join([str(s) for s in signals]), '-', strategy.portfolio.valuate())
         job.finished(condition='exchange is closed', status=Job.WARNINGS)
         return Job.WARNINGS
 
@@ -77,7 +78,7 @@ def main():
         # Script cannot go any further from this point, but should not error. Should still update portfolio though.
         trade_executor.update_portfolio_db()
         job.finished(condition='no proposed trades')
-        set_way_points(strategy.name, ', '.join([str(s) for s in signals]), '-', trade_executor.portfolio.valuate())
+        set_bread_crumb(strategy, ', '.join([str(s) for s in signals]), '-', trade_executor.portfolio.valuate())
         return Job.WARNINGS
 
     # Execute trades.
@@ -90,9 +91,9 @@ def main():
 
     # Update save portfolio to database and create way point.
     trade_executor.update_portfolio_db()
-    processed_trades_string = ', '.join(processed_trades)
+    processed_trades_string = ', '.join(processed_trades) if processed_trades else '-'
     signals_string = ', '.join([str(s) for s in signals])
-    set_way_points(strategy.name, signals_string, processed_trades_string, trade_executor.portfolio.valuate())
+    set_bread_crumb(strategy, signals_string, processed_trades_string, trade_executor.portfolio.valuate())
 
     # Log summary.
     Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))

@@ -2,15 +2,15 @@ import datetime
 
 from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
+from library.strategy.bread_crumbs import BreadCrumb
 
 
 class DataLoader:
-
     VALUE_DATA_TYPES = ['valuation']
 
-    def __init__(self, db_name):
+    def __init__(self, data_type, db_name=None):
         self._db = Database(Constants.db_path, Constants.environment, name=db_name)
-        self.type = None
+        self.type = data_type
         self.data = {}
         self.warnings = {}
 
@@ -25,39 +25,37 @@ class DataLoader:
                 Constants.log.info('{}No data warnings.'.format(log_prefix))
 
 
-class WayPointDataLoader(DataLoader):
-
-    DB_NAME = 'algo_trading_platform'
-    WAY_POINT_TIME_SERIES = 'way_point_time_series'
+# Expect issues with this.
+class BreadCrumbsDataLoader(DataLoader):
+    BREAD_CRUMBS_TIME_SERIES = 'bread_crumbs_time_series'
 
     def __init__(self):
-        DataLoader.__init__(self, WayPointDataLoader.DB_NAME)
+        DataLoader.__init__(self, self.BREAD_CRUMBS_TIME_SERIES)
 
-    def load_way_point_time_series(self, strategy_name):
-        self.type = WayPointDataLoader.WAY_POINT_TIME_SERIES
+    def load_bread_crumbs_time_series(self, strategy_name):
         self.data[self.type] = {strategy_name: {}}
-        way_point_rows = self._db.query_table('strategy_way_points', 'strategy="{}"'.format(strategy_name))
-        if way_point_rows:
+        bread_crumb_rows = self._db.query_table(BreadCrumb.TABLE, 'strategy="{}"'.format(strategy_name))
+        if bread_crumb_rows:
+            # TODO need to refactor according to new design.
             # Extract time series.
-            way_point_time_series = [(way_point_row[-3:]) for way_point_row in way_point_rows]
+            bread_crumb_time_series = [(bread_crumb_row[-3:]) for bread_crumb_row in bread_crumb_rows]
 
             # Group time series by type.
-            way_point_types = set([w[0] for w in way_point_time_series])
-            for way_point_type in way_point_types:
-                data = [[w[1], w[2]] for w in way_point_time_series if w[0] == way_point_type]
-                self.data[self.type][strategy_name][way_point_type] = data
+            way_point_types = set([w[0] for w in bread_crumb_time_series])
+            for bread_crumb_type in way_point_types:
+                data = [[w[1], w[2]] for w in bread_crumb_time_series if w[0] == bread_crumb_type]
+                self.data[self.type][strategy_name][bread_crumb_type] = data
         else:
             self.warnings[self.type] = {strategy_name: 'not_in_database'}
 
 
 class MarketDataLoader(DataLoader):
-
     DB_NAME = 'market_data'
     TICKER = 'ticker'
     LATEST_TICKER = 'latest_ticker'
 
     def __init__(self):
-        DataLoader.__init__(self, MarketDataLoader.DB_NAME)
+        DataLoader.__init__(self, MarketDataLoader.TICKER, db_name=MarketDataLoader.DB_NAME)
 
     @staticmethod
     def _staleness(time_series, scope=1):
@@ -98,7 +96,6 @@ class MarketDataLoader(DataLoader):
         return ticks_time_series, warnings
 
     def load_tickers(self, symbol, before, after):
-        self.type = MarketDataLoader.TICKER
         before = datetime.datetime.strftime(before, Constants.DATETIME_FORMAT)
         after = datetime.datetime.strftime(after, Constants.DATETIME_FORMAT)
         data, warnings = self._load_ticks(symbol, before, after)

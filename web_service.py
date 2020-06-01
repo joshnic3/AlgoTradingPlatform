@@ -1,17 +1,14 @@
 import datetime
 import json
-import optparse
-import os
-import sys
 
 from flask import Flask, request
 
 from library.bootstrap import Constants
-from library.data_loader import MarketDataLoader, WayPointDataLoader
+from library.data_loader import MarketDataLoader, BreadCrumbsDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
-from library.strategy import WayPoint, Portfolio
-from library.utilities.file import parse_configs_file
+from library.strategy.portfolio import Portfolio
+from library.strategy.bread_crumbs import BreadCrumb
 from library.utilities.job import is_script_new, Job
 from library.utilities.authentication import public_key_from_private_key, secret_key
 from library.data_loader import DataLoader
@@ -142,14 +139,14 @@ def strategies():
     strategies_as_dict = query_result_to_dict(strategies_rows, strategy_table_schema)
     for strategy in strategies_as_dict:
         # Get historical valuations from way points.
-        way_point_data_loader = WayPointDataLoader()
-        way_point_data_loader.load_way_point_time_series(strategy['name'])
-        if WayPointDataLoader.WAY_POINT_TIME_SERIES in way_point_data_loader.data:
-            data = way_point_data_loader.data[WayPointDataLoader.WAY_POINT_TIME_SERIES][strategy['name']]
+        way_point_data_loader = BreadCrumbsDataLoader()
+        way_point_data_loader.load_bread_crumbs_time_series(strategy['name'])
+        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in way_point_data_loader.data:
+            data = way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]
 
-            if WayPoint.VALUATION in data:
+            if BreadCrumb.VALUATION in data:
                 # Extract historical valuations.
-                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[WayPoint.VALUATION]]
+                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[BreadCrumb.VALUATION]]
 
                 # Calculate 24hr pnl.
                 now = datetime.datetime.now()
@@ -172,8 +169,9 @@ def strategies():
     return response(200, strategies_as_dict)
 
 
-@app.route('/strategy_way_points')
-def strategy_way_points():
+@app.route('/strategy_bread_crumbs')
+def strategy_bread_crumbs():
+    # Returns data as time series.
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
     if client_ip not in Constants.configs['authorised_ip_address']:
@@ -183,17 +181,34 @@ def strategy_way_points():
     params = {x: request.args[x] for x in request.args if x is not None}
 
     if 'id' in params:
-        way_point_data_loader = WayPointDataLoader()
-        way_point_data_loader.load_way_point_time_series(params['id'])
-        if WayPointDataLoader.WAY_POINT_TIME_SERIES in way_point_data_loader.data:
-            data = way_point_data_loader.data[WayPointDataLoader.WAY_POINT_TIME_SERIES][params['id']]
-            for date_type in data:
-                data[date_type].reverse()
-                for element in data[date_type]:
-                    if date_type in DataLoader.VALUE_DATA_TYPES:
-                        element[1] = float_to_string(float(element[1]))
-                    element[0] = format_datetime_sting(element[0])
-            return response(200, data)
+        bread_crumb_data_loader = BreadCrumbsDataLoader()
+        bread_crumb_data_loader.load_bread_crumbs_time_series(params['id'])
+        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in bread_crumb_data_loader.data:
+            # Extract data from data loader.
+            data = bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]
+
+            # Convert to time series and format data.
+            time_series = {}
+            for data_type in data:
+                for element in data[data_type]:
+                    data_point = float_to_string(float(element[1])) if data_type in DataLoader.VALUE_DATA_TYPES else element[1]
+                    if element[0] not in time_series:
+                        time_series[element[0]] = [{data_type: data_point}]
+                    else:
+                        time_series[element[0]].append({data_type: data_point})
+
+            # Eject any time with out a full data set.
+            data_sets = max([len(data_set) for data_set in time_series])
+            final_time_series = {{time_series: time_series[data_set]} for data_set in time_series if len(data_set) == data_sets}
+            if len(final_time_series) != len(time_series):
+                Constants.log.warning('Some data sets were incomplete.')
+
+            # Sort by time.
+            # time_series = list(time_series)
+            # time_series.reverse()
+
+
+            return response(200, time_series)
         else:
             return response(401, 'No way point data found.')
 

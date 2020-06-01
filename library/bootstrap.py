@@ -43,7 +43,7 @@ class Constants:
     _DEVELOPMENT_ENVIRONMENT = 'dev'
     _CONFIG_FILE_EXTENSION = 'json'
     _MANUAL_RUN = 'manual_run'
-    _PP_ARGUMENT_TEMPLATE = '"{}": {}'
+    _PP_ARGUMENT_TEMPLATE = '{}: "{}"'
 
     DATETIME_FORMAT = '%Y%m%d%H%M%S'
     PP_DATETIME_FORMAT = '%H:%M.%S'
@@ -69,6 +69,7 @@ class Constants:
         self.debug = None
         self.log_path = None
         self.script = None
+        self.run_time = datetime.datetime.now()
 
         # Initiate environment specific paths.
         self.db_path = None
@@ -149,6 +150,7 @@ class StrategySetupXMLNameSpace(XMLNameSpace):
     CASH = 'cash'
     ASSET = 'asset'
     JOB = 'job'
+    ALLOCATION = 'allocation'
 
     def __init__(self):
         XMLNameSpace.__init__(self, self._SETUP)
@@ -156,6 +158,7 @@ class StrategySetupXMLNameSpace(XMLNameSpace):
         self.cash = self._ELEMENT_PATH_TEMPLATE.format(self.portfolio, self.CASH)
         self.asset = self._ELEMENT_PATH_TEMPLATE.format(self.portfolio, self.ASSET)
         self.job = self._ELEMENT_PATH_TEMPLATE.format(self.root, self.JOB)
+        self.allocation = self._ELEMENT_PATH_TEMPLATE.format(self.root, self.ALLOCATION)
 
 
 class StrategyDataRequirementsXMLNameSpace(XMLNameSpace):

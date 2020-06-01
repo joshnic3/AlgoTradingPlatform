@@ -1,9 +1,10 @@
 from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
-from hashlib import sha256, md5
-import datetime
+from hashlib import sha256
+from library.utilities.onboarding import generate_unique_id
 
-# username + password -> user_hash
+# user_id + password -> user_hash
+# this way profile names can hot swapped.
 
 # "profiles": ["id", "username", "hash"]
 # "strategy_profiles": ["id", "profile_id", "strategy_id"]
@@ -12,12 +13,6 @@ import datetime
 
 BASE = 5
 POWER = 23
-
-
-def generate_unique_id(seed):
-    string_to_hash = (str(seed) + datetime.datetime.now().strftime(Constants.date_time_format)).encode()
-    hash_object = md5(string_to_hash)
-    return hash_object.hexdigest()
 
 
 def generate_user_hash(username, password):

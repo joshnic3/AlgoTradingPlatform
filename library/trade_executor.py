@@ -1,9 +1,10 @@
 import time
 
 from library.bootstrap import Constants
-from library.exposure_manager import ExposureManager
+from library.strategy.exposure_manager import ExposureManager
 from library.interfaces.exchange import AlpacaInterface as Alpaca
-from library.strategy import Signal, Portfolio
+from library.strategy.portfolio import Portfolio
+from library.strategy.signal import Signal
 
 
 class TradeExecutor:
@@ -16,22 +17,34 @@ class TradeExecutor:
         self.portfolio = self.strategy.portfolio
         self.exchange = exchange
 
-    def generate_trades_from_signals(self, signals):
-        # Generates trades from signals using the strategy's risk profile and and execution options.
-
+    def _determine_units_to_trade(self, signal):
         # Manage exposure if specified in strategy execution options.
         if 'manage_exposure' in self.strategy.execution_options:
             exposure_manager = ExposureManager(self.strategy, default_units=self._default_no_of_units)
         else:
             exposure_manager = None
 
+        # Dynamically suggest units based on exposure rules.
+        units = exposure_manager.units_to_trade(signal) if exposure_manager else self._default_no_of_units
+
+        # TODO Could also use a portfolio manager that keeps cash level within its allocation.
+
+        # Catch all check to prevent proposing negative trades.
+        if units < 0:
+            Constants.log.error('Trade executor accidentally suggested negative units, overriding to zero.')
+            units = 0
+        return units
+
+    def generate_trades_from_signals(self, signals):
+        # Generates trades from signals using the strategy's risk profile and and execution options.
+
         self.portfolio.sync_with_exchange(self.exchange)
         potential_portfolio = self.portfolio
         trades = []
         for signal in signals:
             if signal.signal != Signal.HOLD:
-                # Decide how many units to trade using strategy options and portfolio data.
-                units = exposure_manager.units_to_trade(signal) if exposure_manager else self._default_no_of_units
+                # Decide how many units to trade.
+                units = self._determine_units_to_trade(signal)
 
                 # Make potential portfolio changes for sell order.
                 # TODO May need to consider exchange commissions here.

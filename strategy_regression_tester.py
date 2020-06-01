@@ -3,7 +3,7 @@ import os
 import sys
 
 from library.bootstrap import Constants
-from library.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml, Strategy, RiskProfile, WayPoint
+from library.strategy.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml, Strategy, RiskProfile
 from library.trade_executor import TradeExecutor
 from library.utilities.file import parse_configs_file
 from library.utilities.log import get_log_file_path, setup_log, log_configs, log_hr

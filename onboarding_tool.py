@@ -5,7 +5,7 @@ from crontab import CronTab
 
 from library.bootstrap import Constants, log_hr
 from library.interfaces.sql_database import initiate_database, Database
-from library.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
+from library.strategy.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
 from library.utilities.file import add_dir, parse_wildcards, get_environment_specific_path, \
     copy_file, read_json_file
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
@@ -73,7 +73,7 @@ def main():
         # Initiate strategy if it does not exist.
         if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
             # Add portfolio and strategy.
-            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), strategy_setup_dict['cash'])
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), strategy_setup_dict['allocation'], strategy_setup_dict['cash'])
             add_strategy(db, strategy_dict['name'], portfolio_id)
 
             # Add any assets.
@@ -92,6 +92,7 @@ def main():
 
         # Only existing reset jobs when initialising the environment.
         reset = True if INITIATE_ENVIRONMENT in functions_to_do else False
+        # interpreter = '/home/robot/projects/AlgoTradingPlatform/venv/bin/python3'
         interpreter = 'python3'
         code_path = '/home/robot/projects/AlgoTradingPlatform'
 
