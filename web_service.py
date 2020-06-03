@@ -16,11 +16,15 @@ from library.data_loader import DataLoader
 app = Flask(__name__)
 
 
-def float_to_string(value_float):
+def float_to_str(value_float):
     return '{:,.2f}'.format(value_float)
 
 
-def format_datetime_sting(datetime_string):
+def int_to_str(value_int):
+    return '{:,d}'.format(value_int)
+
+
+def format_datetime_str(datetime_string):
     if datetime_string is None:
         return None
     date_time = datetime.datetime.strptime(datetime_string, Constants.DATETIME_FORMAT)
@@ -77,7 +81,7 @@ def tick_capture_job():
     db = Database()
     start_time_string, job_id = db.get_one_row('jobs', 'script="{}"'.format('tick_capture'), 'max(start_time), id')
     data = {
-        'start_time': format_datetime_sting(start_time_string),
+        'start_time': format_datetime_str(start_time_string),
         'job_id': job_id
     }
 
@@ -116,7 +120,7 @@ def market_data():
     data_loader.load_tickers(symbol, before, after)
     if MarketDataLoader.TICKER in data_loader.data:
         data = data_loader.data[MarketDataLoader.TICKER][symbol]
-        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_string(d[1]), int(d[2])] for d in data]
+        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_str(d[1]), int_to_str(int(d[2]))] for d in data]
         return response(200, data)
     else:
         return response(401, 'Market data not available.')
@@ -155,7 +159,7 @@ def strategies():
 
                 # Format data.
                 if twenty_four_hour_valuations:
-                    formatted_pnl = float_to_string(sum(twenty_four_hour_valuations)/len(twenty_four_hour_valuations))
+                    formatted_pnl = float_to_str(sum(twenty_four_hour_valuations) / len(twenty_four_hour_valuations))
                 else:
                     formatted_pnl = '-'
                 formatted_valuations = [[v[0].strftime(Constants.PP_DATETIME_FORMAT), v[1]] for v in valuations]
@@ -191,15 +195,20 @@ def strategy_bread_crumbs():
             time_series = {}
             for data_type in data:
                 for element in data[data_type]:
-                    data_point = float_to_string(float(element[1])) if data_type in DataLoader.VALUE_DATA_TYPES else element[1]
+                    data_point = float_to_str(float(element[1])) if data_type in DataLoader.VALUE_DATA_TYPES else element[1]
                     if element[0] not in time_series:
                         time_series[element[0]] = {data_type: data_point}
                     else:
                         time_series[element[0]][data_type] = data_point
 
-            # Sort and format.
-            # TODO, sort by time desc.
-            time_series = [[format_datetime_sting(r), time_series[r]['signal'], time_series[r]['trade'], time_series[r]['valuation']] for r in time_series]
+            # Refactor into time series.
+            time_series = [[r, time_series[r]['signal'], time_series[r]['trade'], time_series[r]['valuation']] for r in time_series]
+
+            # Sort by datetime descending.
+            time_series = sorted(time_series, key=lambda x: x[0], reverse=True)
+
+            # Format datetime. Have to do after sorting as full datetime string is required to sort accurately.
+            time_series = [[format_datetime_str(d[0]), d[1], d[2], d[3]] for d in time_series]
             return response(200, time_series)
         else:
             return response(401, 'No way point data found.')
@@ -234,8 +243,8 @@ def portfolio():
         # Package portfolio data.
         data = {
             Portfolio.ID: portfolio_obj.id,
-            Portfolio.CASH: float_to_string(portfolio_obj.cash),
-            Portfolio.VALUE: float_to_string(portfolio_obj.valuate()),
+            Portfolio.CASH: float_to_str(portfolio_obj.cash),
+            Portfolio.VALUE: float_to_str(portfolio_obj.valuate()),
         }
 
         return response(200, data)
@@ -261,7 +270,7 @@ def assets():
         portfolio_obj = Portfolio(params['id'], db)
         portfolio_obj.sync_with_exchange(exchange)
         for asset in portfolio_obj.assets:
-            exposure_as_string = float_to_string(portfolio_obj.assets[asset][Portfolio.EXPOSURE])
+            exposure_as_string = float_to_str(portfolio_obj.assets[asset][Portfolio.EXPOSURE])
             portfolio_obj.assets[asset][Portfolio.EXPOSURE] = exposure_as_string
         return response(200, portfolio_obj.assets)
 
@@ -287,7 +296,7 @@ def job():
             'name': job_obj.name,
             'script': job_obj.script,
             'log_path': job_obj.log_path,
-            'start_time': format_datetime_sting(job_obj.start_time),
+            'start_time': format_datetime_str(job_obj.start_time),
             'elapsed_time': job_obj.elapsed_time,
             'finish_state': job_obj.STATUS_MAP[int(job_obj.finish_state)],
             'version': '{0}{1}'.format(job_obj.version, ' (NEW)' if is_script_new(job_obj.script) else ''),

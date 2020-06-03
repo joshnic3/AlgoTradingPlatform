@@ -28,6 +28,7 @@ def is_script_new(script_name):
 
 
 class Job:
+    DB_NAME = 'job_data'
 
     SUCCESSFUL = 0
     WARNINGS = 2
@@ -40,7 +41,7 @@ class Job:
     FIRST_PHASE = 'INITIATED'
 
     def __init__(self, log_path=None, job_id=None):
-        self._db = Database()
+        self._db = Database(name=self.DB_NAME)
         self.phase_name = None
 
         if job_id:
