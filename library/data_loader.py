@@ -41,8 +41,8 @@ class BreadCrumbsDataLoader(DataLoader):
             bread_crumb_time_series = [(bread_crumb_row[-3:]) for bread_crumb_row in bread_crumb_rows]
 
             # Group time series by type.
-            way_point_types = set([w[0] for w in bread_crumb_time_series])
-            for bread_crumb_type in way_point_types:
+            bread_crumb_types = set([w[0] for w in bread_crumb_time_series])
+            for bread_crumb_type in bread_crumb_types:
                 data = [[w[1], w[2]] for w in bread_crumb_time_series if w[0] == bread_crumb_type]
                 self.data[self.type][strategy_name][bread_crumb_type] = data
         else:
@@ -56,23 +56,6 @@ class MarketDataLoader(DataLoader):
 
     def __init__(self):
         DataLoader.__init__(self, MarketDataLoader.TICKER, db_name=MarketDataLoader.DB_NAME)
-
-    @staticmethod
-    def _staleness(time_series, scope=1):
-        # TODO this is shit
-        # Quantifies staleness
-        #   time_series [(datetime, float)]
-        #   Will return True if any value is the same as the next *scope* elements including itself.
-        #   e.g. scope = 3,  [..., 91.61, |91.65, 91.65, 91.64|, 91.64, ...] => False
-
-        values = [t[1] for t in time_series]
-        scope = int(scope)
-        stale_count = 0
-        for i in range(0, len(values)):
-            values_in_scope = [values[i + j] for j in range(scope)] if i + (scope - 1) < len(values) else values[i:]
-            if len(values_in_scope) > 1 and (len(set(values_in_scope)) != len(values_in_scope)):
-                stale_count += 1
-        return stale_count / len(time_series)
 
     def _load_ticks(self, symbol, before, after, stale_scope=None):
         # Read ticks from database.
@@ -88,10 +71,6 @@ class MarketDataLoader(DataLoader):
             tick_value = float(tick_dict['price'])
             tick_volume = int(tick_dict['volume'])
             ticks_time_series.append((tick_datetime, tick_value, tick_volume))
-
-            # Carry out any data checks.
-            if stale_scope and self._staleness(ticks_time_series, scope=int(stale_scope)):
-                warnings.append('stale_ticker_{0}'.format(symbol.lower()))
 
         # Return data.
         return ticks_time_series, warnings
@@ -118,7 +97,7 @@ class MarketDataLoader(DataLoader):
 
         # Read tick from database.
         condition = 'symbol="{0}" AND date_time<{1}'.format(symbol, now_datetime_string)
-        tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), value')
+        tick_rows = self._db.get_one_row('ticks', condition, columns='max(date_time), price')
         if tick_rows[1]:
             self.data[self.type] = {symbol: float(tick_rows[1])}
         else:

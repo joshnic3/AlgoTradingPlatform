@@ -1,54 +1,42 @@
 import datetime
 from statistics import mean
+from library.data_loader import MarketDataLoader
+from library.bootstrap import Constants
 
 
 def _get_latest_value(context, symbol):
-    return float(context.data['ticker'][symbol][-1][1])
+    return float(context.data[MarketDataLoader.TICKER][symbol][-1][1])
+
+
+def _get_latest_volume(context, symbol):
+    return float(context.data[MarketDataLoader.TICKER][symbol][-1][2])
 
 
 def _get_values_in_datetime_range(context, symbol, from_after, until_before):
-    return [price for date_time, price in context.data['ticker'][symbol] if until_before > date_time > from_after]
+    return [p for dt, p in context.data[MarketDataLoader.TICKER][symbol] if until_before > dt > from_after]
 
 
 def _get_todays_values(context, symbol):
-    now = context.now.strftime('%Y%m%d%H%M%S')
+    now = context.now.strftime(Constants.DATETIME_FORMAT)
     this_morning = '{0}0000'.format(now[8:])
     return _get_values_in_datetime_range(context, symbol, this_morning, now)
-
-
-def _get_live_value(context, symbol):
-    result = context.ds.request_tickers([symbol, 'JPM'])
-    return float(result[symbol])
 
 
 def _time_minutes_ago(context, minutes):
     return context.now - datetime.timedelta(minutes=minutes)
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Strategy Functions
 
-def basic(context, parameters):
-    # Fetch static all data together.
-    eight_hours_ago = _time_minutes_ago(context, 60*8)
-    previous_values = _get_values_in_datetime_range(context, parameters['symbol'], eight_hours_ago, context.now)
-    latest_value = _get_live_value(context, parameters['symbol'])
 
-    # Calculate values.
-    mean_value = mean(previous_values)
-    threshold = mean_value * 0.1
-
-    # Generate signal.
-    if latest_value > mean_value + threshold:
-        context.add_signal(parameters['symbol'], order_type='sell', target_value=latest_value)
-    elif latest_value < mean_value - threshold:
-        context.add_signal(parameters['symbol'], order_type='buy', target_value=latest_value)
-    else:
-        context.add_signal(parameters['symbol'], order_type='hold')
-
+def test(context, parameters):
+    context.add_signal(parameters['symbol'], order_type='hold')
     return context.signals
 
 
 def pairs(context, parameters):
 
-    # Get all twaps for both symbols from the last hour.
+    # Get all ticker data for both symbols from the last hour.
     one_hour_ago = _time_minutes_ago(context, int(parameters['minutes_to_look_back']))
     a_values = _get_values_in_datetime_range(context, parameters['symbol_a'], one_hour_ago, context.now)
     b_values = _get_values_in_datetime_range(context, parameters['symbol_b'], one_hour_ago, context.now)

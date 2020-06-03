@@ -116,7 +116,7 @@ def market_data():
     data_loader.load_tickers(symbol, before, after)
     if MarketDataLoader.TICKER in data_loader.data:
         data = data_loader.data[MarketDataLoader.TICKER][symbol]
-        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_string(d[1])] for d in data]
+        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_string(d[1]), int(d[2])] for d in data]
         return response(200, data)
     else:
         return response(401, 'Market data not available.')
@@ -193,21 +193,13 @@ def strategy_bread_crumbs():
                 for element in data[data_type]:
                     data_point = float_to_string(float(element[1])) if data_type in DataLoader.VALUE_DATA_TYPES else element[1]
                     if element[0] not in time_series:
-                        time_series[element[0]] = [{data_type: data_point}]
+                        time_series[element[0]] = {data_type: data_point}
                     else:
-                        time_series[element[0]].append({data_type: data_point})
+                        time_series[element[0]][data_type] = data_point
 
-            # Eject any time with out a full data set.
-            data_sets = max([len(data_set) for data_set in time_series])
-            final_time_series = {{time_series: time_series[data_set]} for data_set in time_series if len(data_set) == data_sets}
-            if len(final_time_series) != len(time_series):
-                Constants.log.warning('Some data sets were incomplete.')
-
-            # Sort by time.
-            # time_series = list(time_series)
-            # time_series.reverse()
-
-
+            # Sort, format and reverse.
+            time_series = [[format_datetime_sting(r), time_series[r]['signal'], time_series[r]['trade'], time_series[r]['valuation']] for r in time_series]
+            time_series.reverse()
             return response(200, time_series)
         else:
             return response(401, 'No way point data found.')

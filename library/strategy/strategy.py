@@ -129,7 +129,6 @@ class Strategy:
             Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
         else:
             Constants.log.info('No data sets loaded.')
-
         if self.data_loader.warnings:
             Constants.log.warning('Data loader reported {0} warnings'.format(len(self.data_loader.warnings)))
 

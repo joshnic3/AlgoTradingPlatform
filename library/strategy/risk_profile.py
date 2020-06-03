@@ -9,7 +9,6 @@ class RiskProfile:
     THRESHOLD = 'threshold'
 
     EXPOSURE_LIMIT = 'max_exposure'
-    LIQUIDITY_LIMIT = 'min_liquidity'
     NEGATIVE_UNITS = 'negative_units'
 
     def __init__(self, profile_dict):
@@ -34,9 +33,6 @@ class RiskProfile:
                 return False
         return True
 
-    def _check_liquidity_limit(self, portfolio):
-        return True
-
     def assess_portfolio(self, portfolio):
         passes = True
 
@@ -46,9 +42,6 @@ class RiskProfile:
 
         # Custom checks.
         if self.EXPOSURE_LIMIT in self.checks and not self._check_exposure_limit(portfolio):
-            passes = False
-
-        if self.LIQUIDITY_LIMIT in self.checks and not self._check_liquidity_limit(portfolio):
             passes = False
 
         return passes

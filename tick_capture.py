@@ -11,7 +11,7 @@ from library.utilities.onboarding import generate_unique_id
 
 
 def ticker_checks(ticker):
-    #  TODO Test this is working.
+    #  TODO Implement ticker checks.
     if 'stale_tick_limit' in ticker:
         pass
     return []
