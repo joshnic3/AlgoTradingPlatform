@@ -187,7 +187,7 @@ def strategy_bread_crumbs():
             # Extract data from data loader.
             data = bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]
 
-            # Convert to time series and format data.
+            # Group data by timestamp.
             time_series = {}
             for data_type in data:
                 for element in data[data_type]:
@@ -197,9 +197,9 @@ def strategy_bread_crumbs():
                     else:
                         time_series[element[0]][data_type] = data_point
 
-            # Sort, format and reverse.
+            # Sort and format.
+            # TODO, sort by time desc.
             time_series = [[format_datetime_sting(r), time_series[r]['signal'], time_series[r]['trade'], time_series[r]['valuation']] for r in time_series]
-            time_series.reverse()
             return response(200, time_series)
         else:
             return response(401, 'No way point data found.')

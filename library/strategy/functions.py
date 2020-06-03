@@ -13,7 +13,7 @@ def _get_latest_volume(context, symbol):
 
 
 def _get_values_in_datetime_range(context, symbol, from_after, until_before):
-    return [p for dt, p in context.data[MarketDataLoader.TICKER][symbol] if until_before > dt > from_after]
+    return [p for dt, p, v in context.data[MarketDataLoader.TICKER][symbol] if until_before > dt > from_after]
 
 
 def _get_todays_values(context, symbol):
