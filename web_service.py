@@ -138,7 +138,14 @@ def strategies():
     # Initiate database connection.
     db = Database()
 
-    strategies_rows = db.query_table('strategies')
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        strategies_rows = db.query_table('strategies', 'name="{}"'.format(params['id']))
+    else:
+        strategies_rows = db.query_table('strategies')
+
     strategy_table_schema = Constants.configs['tables'][Constants.DB_NAME]['strategies']
     strategies_as_dict = query_result_to_dict(strategies_rows, strategy_table_schema)
     for strategy in strategies_as_dict:
