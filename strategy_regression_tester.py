@@ -12,7 +12,6 @@ from library.interfaces.sql_database import initiate_database, generate_unique_i
 from library.utilities.onboarding import add_portfolio, add_strategy, add_assets
 
 
-
 class RegressionTester:
     DB_NAME = 'regression_testing'
 
@@ -169,6 +168,7 @@ def main():
     # Export way point data to CSV report.
     regression_tester.export_way_point_data_to_csv('report.csv')
     regression_tester.clean_up()
+
 
 main()
 

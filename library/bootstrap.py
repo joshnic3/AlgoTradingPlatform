@@ -77,6 +77,7 @@ class Constants:
         self.logs_path = None
 
     def parse_arguments(self, configs_file_name=None, custom_args=[]):
+        # TODO Swap out for arg parse, opt parse is no longer supported.
         # Initiate options parser.
         parser = optparse.OptionParser()
         parser.add_option('-e', '--environment', dest="environment")

@@ -18,6 +18,8 @@ class TradeExecutor:
         self.exchange = exchange
 
     def _determine_units_to_trade(self, signal):
+        # TODO Could also use a portfolio manager that keeps cash level within its allocation.
+
         # Manage exposure if specified in strategy execution options.
         if 'manage_exposure' in self.strategy.execution_options:
             exposure_manager = ExposureManager(self.strategy, default_units=self._default_no_of_units)
@@ -25,9 +27,10 @@ class TradeExecutor:
             exposure_manager = None
 
         # Dynamically suggest units based on exposure rules.
-        units = exposure_manager.units_to_trade(signal) if exposure_manager else self._default_no_of_units
-
-        # TODO Could also use a portfolio manager that keeps cash level within its allocation.
+        if exposure_manager:
+            units = exposure_manager.units_to_trade(signal) if exposure_manager else self._default_no_of_units
+        else:
+            units = self._default_no_of_units
 
         # Catch all check to prevent proposing negative trades.
         if units < 0:
