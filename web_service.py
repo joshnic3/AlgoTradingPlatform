@@ -28,7 +28,7 @@ def format_datetime_str(datetime_string):
     if datetime_string is None:
         return None
     date_time = datetime.datetime.strptime(datetime_string, Constants.DATETIME_FORMAT)
-    return date_time.strftime(Constants.PP_DATETIME_FORMAT)
+    return date_time.strftime(Constants.PP_TIME_FORMAT)
 
 
 def response(status, data=None):
@@ -120,7 +120,7 @@ def market_data():
     data_loader.load_tickers(symbol, before, after)
     if MarketDataLoader.TICKER in data_loader.data:
         data = data_loader.data[MarketDataLoader.TICKER][symbol]
-        data = [[d[0].strftime(Constants.PP_DATETIME_FORMAT), float_to_str(d[1]), int_to_str(int(d[2]))] for d in data]
+        data = [[d[0].strftime(Constants.PP_TIME_FORMAT), float_to_str(d[1]), int_to_str(int(d[2]))] for d in data]
         return response(200, data)
     else:
         return response(401, 'Market data not available.')
@@ -152,7 +152,8 @@ def strategies():
         # Get historical valuations from way points.
         way_point_data_loader = BreadCrumbsDataLoader()
         way_point_data_loader.load_bread_crumbs_time_series(strategy['name'])
-        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in way_point_data_loader.data:
+        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in \
+                way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]:
             data = way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]
 
             if BreadCrumb.VALUATION in data:
@@ -169,7 +170,7 @@ def strategies():
                     formatted_pnl = float_to_str(sum(twenty_four_hour_valuations) / len(twenty_four_hour_valuations))
                 else:
                     formatted_pnl = '-'
-                formatted_valuations = [[v[0].strftime(Constants.PP_DATETIME_FORMAT), v[1]] for v in valuations]
+                formatted_valuations = [[v[0].strftime(Constants.PP_TIME_FORMAT), v[1]] for v in valuations]
             else:
                 formatted_pnl = 0
                 formatted_valuations = None
@@ -194,7 +195,8 @@ def strategy_bread_crumbs():
     if 'id' in params:
         bread_crumb_data_loader = BreadCrumbsDataLoader()
         bread_crumb_data_loader.load_bread_crumbs_time_series(params['id'])
-        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in bread_crumb_data_loader.data:
+        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in \
+                bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]:
             # Extract data from data loader.
             data = bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]
 

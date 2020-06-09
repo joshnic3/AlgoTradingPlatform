@@ -1,11 +1,14 @@
+import pytz
+
 from library.strategy.signal import Signal
+from library.bootstrap import Constants
 
 
 class Context:
     TABLE = 'strategy_variables'
 
     def __init__(self, db, strategy_name, run_datetime, data, ds=None):
-        self.now = run_datetime
+        self.now = run_datetime.replace(tzinfo=pytz.timezone(Constants.TIME_ZONE))
         self.db = db
         self.data = data
         self.ds = ds if ds else None

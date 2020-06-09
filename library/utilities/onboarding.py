@@ -26,6 +26,6 @@ def add_portfolio(db, name, allocation, cash=0.0):
     return portfolio_id
 
 
-def add_assets(db, portfolio_id, symbol):
+def add_assets(db, portfolio_id, symbol, units=0):
     asset_id = generate_unique_id(symbol)
-    db.insert_row('assets', [asset_id, portfolio_id, symbol, 0, 0.0])
+    db.insert_row('assets', [asset_id, portfolio_id, symbol, units, 0.0])

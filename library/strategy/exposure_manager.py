@@ -25,6 +25,8 @@ class ExposureManager:
         return int(target_value / current_value)
 
     def units_to_trade(self, signal):
+        units = 0
+
         # Calculate common for values portfolio, each section will return after it updates the portfolio tracker.
         portfolio_exposure = sum([self._portfolio.assets[a][Portfolio.EXPOSURE] for a in self._portfolio.assets])
         portfolio_exposure_limit = float(self._risk_profile.checks[RiskProfile.EXPOSURE_LIMIT])

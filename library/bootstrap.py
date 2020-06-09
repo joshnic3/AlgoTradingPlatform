@@ -3,13 +3,19 @@ import logging
 import optparse
 import os
 import sys
+import pytz
 
 from library.utilities.file import read_json_file
 
 
 def get_log_file_path():
     today_str = datetime.datetime.now().strftime(Constants.DATETIME_FORMAT)
-    return os.path.join(Constants.logs_path, '{0}_{1}.log'.format(Constants.job_name, today_str))
+    if os.path.isdir(Constants.logs_path):
+        return os.path.join(Constants.logs_path, '{0}_{1}.log'.format(Constants.job_name, today_str))
+    else:
+        temp_path = os.path.join(Constants.root_path, 'setuptemp')
+        os.mkdir(temp_path)
+        return os.path.join(temp_path, '{0}_{1}.log'.format(Constants.job_name, today_str))
 
 
 def setup_log(show_in_console=False):
@@ -31,8 +37,12 @@ def setup_log(show_in_console=False):
     return log
 
 
-def log_hr():
-    Constants.log.info('----------------------------------------------------------------------------------------------')
+def log_hr(width=100, new_line=False):
+    width = 100 if not isinstance(width, int) or width > 100 or width < 0 else width
+    line_parts = ['-' for i in range(int(Constants.DEFAULT_LOG_WIDTH * (width/100)))]
+    Constants.log.info(''.join(line_parts))
+    if new_line:
+        Constants.log.info('')
 
 
 class Constants:
@@ -40,20 +50,26 @@ class Constants:
     _RELATIVE_CONFIGS_PATH = 'configs'
     _RELATIVE_LOGS_PATH = 'logs'
     _RELATIVE_STRATEGIES_PATH = 'strategies'
+    _RELATIVE_REGRESSION_PATH = 'regressions'
     _DEVELOPMENT_ENVIRONMENT = 'dev'
     _CONFIG_FILE_EXTENSION = 'json'
     _MANUAL_RUN = 'manual_run'
     _PP_ARGUMENT_TEMPLATE = '{}: "{}"'
 
+    TIME_ZONE = 'Europe/London'
     DATETIME_FORMAT = '%Y%m%d%H%M%S'
-    PP_DATETIME_FORMAT = '%H:%M.%S'
+    PP_DATETIME_FORMAT = '%d/%m/%Y, %H:%M.%S'
+    PP_DATE_FORMAT = '%d/%m/%Y'
+    PP_TIME_FORMAT = '%H:%M.%S'
+    DEFAULT_LOG_WIDTH = 80
     APP_NAME = 'algo_trading_platform'
     DB_NAME = APP_NAME
     RESOURCE_DIRS = [
         _RELATIVE_DB_PATH,
         _RELATIVE_CONFIGS_PATH,
         _RELATIVE_LOGS_PATH,
-        _RELATIVE_STRATEGIES_PATH
+        _RELATIVE_STRATEGIES_PATH,
+        _RELATIVE_REGRESSION_PATH
     ]
 
     def __init__(self):
@@ -68,8 +84,9 @@ class Constants:
         self.job_name = None
         self.debug = None
         self.log_path = None
+        self.regression_path = None
         self.script = None
-        self.run_time = datetime.datetime.now()
+        self.run_time = datetime.datetime.now(pytz.timezone(self.TIME_ZONE))
 
         # Initiate environment specific paths.
         self.db_path = None
@@ -104,6 +121,7 @@ class Constants:
         self.db_path = os.path.join(self.root_path, self.environment, self._RELATIVE_DB_PATH)
         self.configs_path = os.path.join(self.root_path, self.environment, self._RELATIVE_CONFIGS_PATH)
         self.logs_path = os.path.join(self.root_path, self.environment, self._RELATIVE_LOGS_PATH)
+        self.regression_path = os.path.join(self.root_path, self.environment, self._RELATIVE_REGRESSION_PATH)
 
         # Initiate XML namespace.
         self.xml = StrategyXMLNameSpace(options.xml_file) if options.xml_file else None

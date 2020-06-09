@@ -1,4 +1,5 @@
 import datetime
+import pytz
 
 import library.strategy.functions as strategy_functions
 from library.bootstrap import Constants
@@ -46,6 +47,10 @@ def parse_strategy_from_xml(xml_path, return_object=False, db=None):
         Constants.xml.data_requirements.ticker)]
     for ticker in tickers:
         ticker['type'] = MarketDataLoader.TICKER
+        if 'before' in ticker:
+            ticker['before'] = datetime.datetime.strptime(ticker['before'], Constants.DATETIME_FORMAT)
+        if 'after' in ticker:
+            ticker['after'] = datetime.datetime.strptime(ticker['after'], Constants.DATETIME_FORMAT)
     data_requirements = tickers
 
     if return_object:
@@ -84,7 +89,7 @@ def parse_strategy_setup_from_xml(xml_path):
     allocation = sum([float(get_xml_element_attribute(c, 'allocation', required=True)) for c in cash_elements])
 
     # Extract assets.
-    asset_attributes = ['symbol']
+    asset_attributes = ['symbol', 'units']
     assets = [get_xml_element_attributes(a, require=asset_attributes) for a in root.findall(Constants.xml.setup.asset)]
 
     # Return setup as dict.
@@ -105,10 +110,11 @@ class Strategy:
         self._execution_function = function
         self._execution_parameters = parameters
         self._live_data_source = None
+        self._data_warning_cache = 0
 
         self.name = name.lower()
         # This will be overridden for regression testing.
-        self.run_datetime = datetime.datetime.now()
+        self.run_datetime = Constants.run_time.replace(tzinfo=None)
 
         # Load portfolio.
         portfolio_id = self._db.get_one_row(self._TABLE, 'name="{0}"'.format(self.name))[2]
@@ -118,19 +124,25 @@ class Strategy:
         self.risk_profile = risk_profile
         self.execution_options = execution_options
 
-    def _load_required_data(self):
+    def load_required_data(self, historical_data=False):
         # Load required data sets.
         for required_data_set in self._data_requirements:
             if required_data_set['type'] == MarketDataLoader.TICKER:
-                after = required_data_set['after'] if 'after' in required_data_set else datetime.datetime(1970, 1, 1, 0, 0, 0)
-                before = required_data_set['before'] if 'before' in required_data_set else self.run_datetime
-                self.data_loader.load_tickers(required_data_set['symbol'], before, after)
+                this_morning = self.run_datetime.replace(hour=0, minute=0, second=0)
+                self.data_loader.load_tickers(
+                    required_data_set['symbol'],
+                    required_data_set['before'] if 'before' in required_data_set else self.run_datetime,
+                    required_data_set['after'] if 'after' in required_data_set else this_morning,
+                    required=4,
+                    historical_data=historical_data
+                )
         if self.data_loader.data:
             Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
         else:
             Constants.log.info('No data sets loaded.')
-        if self.data_loader.warnings:
-            Constants.log.warning('Data loader reported {0} warnings'.format(len(self.data_loader.warnings)))
+        if len(self.data_loader.warnings) > self._data_warning_cache:
+            self._data_warning_cache = len(self.data_loader.warnings)
+            Constants.log.warning('Data loader reported {0} warning(s)'.format(len(self.data_loader.warnings)))
 
     @staticmethod
     def _clean_signals(dirty_signals):
@@ -174,7 +186,8 @@ class Strategy:
 
     def generate_signals(self):
         # load required data.
-        self._load_required_data()
+        if not self.data_loader.data:
+            self.load_required_data()
 
         # Check method exists.
         if self._execution_function not in dir(strategy_functions):

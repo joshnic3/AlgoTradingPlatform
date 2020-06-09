@@ -94,12 +94,14 @@ class AlpacaInterface:
 
 class SimulatedExchangeInterface(AlpacaInterface):
 
-    def __init__(self, portfolio, run_datetime, market_data_loader=None):
-        self._portfolio = portfolio
+    def __init__(self, strategy, run_datetime, cash):
         AlpacaInterface.__init__(self, '', '', simulator=True)
+
+        self._portfolio = strategy.portfolio
+        self._market_data_loader = strategy.data_loader
         self._orders = []
-        self._market_data_loader = market_data_loader
         self._run_datetime = run_datetime
+        self._cash = cash
 
     def _get_simulated_price(self, symbol):
         if self._market_data_loader:
@@ -110,7 +112,7 @@ class SimulatedExchangeInterface(AlpacaInterface):
 
     def _add_order(self, symbol, units, side):
         # Assume all orders are fully fulfilled.
-        order_id = str(abs(hash(symbol + datetime.datetime.now().strftime(Constants.date_time_format))))
+        order_id = str(abs(hash(symbol + datetime.datetime.now().strftime(Constants.DATETIME_FORMAT))))
         self._orders.append({
             'id': order_id,
             AlpacaInterface.STATUS: AlpacaInterface.FILLED_ORDER,
@@ -131,7 +133,7 @@ class SimulatedExchangeInterface(AlpacaInterface):
             return {AlpacaInterface.UNITS: units, AlpacaInterface.SYMBOL: symbol}
 
         if self.api['ACCOUNT'] in url:
-            return {AlpacaInterface.CASH: str(self._portfolio.cash)}
+            return {AlpacaInterface.CASH: str(self._cash)}
 
         if self.api['ORDERS'] in url:
             return self._orders

@@ -16,8 +16,9 @@ class Signal:
         self.datetime = datetime.datetime.now()
 
     def __str__(self):
-        market_order_pp = '' if self.signal == 'hold' else ' @ market value'
-        return '[{0} {1}{2}]'.format(self.signal, self.symbol, market_order_pp)
+        order_price = round(self.target_value, 2) if self.order_type != 'market' else 'market'
+        string_parts = [self.signal, self.symbol] if self.signal == 'hold' else [self.signal, self.symbol, order_price]
+        return ':'.join(string_parts)
 
     def __repr__(self):
         return self.__str__()

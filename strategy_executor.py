@@ -21,7 +21,8 @@ CUSTOM_ARGS = {
 
 def main():
     # Setup parse options, imitate global constants and logs.
-    Constants.parse_arguments(Constants.APP_NAME, custom_args=CUSTOM_ARGS.keys())
+    args = ['simulate', 'execute', 'withhold_trades']
+    Constants.parse_arguments(Constants.APP_NAME, custom_args=args)
 
     # Setup database.
     db = Database()
@@ -81,13 +82,20 @@ def main():
         set_bread_crumb(strategy, ', '.join([str(s) for s in signals]), '-', trade_executor.portfolio.valuate())
         return Job.WARNINGS
 
-    # Execute trades.
-    job.update_phase('Executing_trades')
-    executed_order_ids = trade_executor.execute_trades(proposed_trades)
+    # This is so the web service can set off dry runs (maybe remove dru_run constant as it is not universal).
+    if Constants.configs['withhold_trades']:
+        Constants.log.info('Produced {0} trade(s).'.format(len(proposed_trades)))
+    else:
+        # Execute trades.
+        job.update_phase('Executing_trades')
+        executed_order_ids = trade_executor.execute_trades(proposed_trades)
 
-    # Process trades.
-    job.update_phase('Processing_trades')
-    processed_trades = trade_executor.process_executed_trades(executed_order_ids)
+        # Process trades.
+        job.update_phase('Processing_trades')
+        processed_trades = trade_executor.process_executed_trades(executed_order_ids)
+
+        # Log summary.
+        Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
 
     # Update save portfolio to database and create way point.
     trade_executor.update_portfolio_db()
@@ -95,8 +103,6 @@ def main():
     signals_string = ', '.join([str(s) for s in signals])
     set_bread_crumb(strategy, signals_string, processed_trades_string, trade_executor.portfolio.valuate())
 
-    # Log summary.
-    Constants.log.info('Executed {0}/{1} trades successfully.'.format(len(processed_trades), len(executed_order_ids)))
     job.finished()
     return Job.SUCCESSFUL
 

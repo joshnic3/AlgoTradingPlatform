@@ -1,4 +1,6 @@
 import datetime
+import pytz
+
 from statistics import mean
 from library.data_loader import MarketDataLoader
 from library.bootstrap import Constants
@@ -8,18 +10,13 @@ def _get_latest_value(context, symbol):
     return float(context.data[MarketDataLoader.TICKER][symbol][-1][1])
 
 
-def _get_latest_volume(context, symbol):
-    return float(context.data[MarketDataLoader.TICKER][symbol][-1][2])
-
-
 def _get_values_in_datetime_range(context, symbol, from_after, until_before):
-    return [p for dt, p, v in context.data[MarketDataLoader.TICKER][symbol] if until_before > dt > from_after]
-
-
-def _get_todays_values(context, symbol):
-    now = context.now.strftime(Constants.DATETIME_FORMAT)
-    this_morning = '{0}0000'.format(now[8:])
-    return _get_values_in_datetime_range(context, symbol, this_morning, now)
+    data = []
+    for now_datetime, price, volume in context.data[MarketDataLoader.TICKER][symbol]:
+        now_datetime = now_datetime.replace(tzinfo=pytz.timezone(Constants.TIME_ZONE))
+        if until_before > now_datetime > from_after:
+            data.append(price)
+    return data
 
 
 def _time_minutes_ago(context, minutes):

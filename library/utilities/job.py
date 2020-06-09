@@ -107,7 +107,7 @@ class Job:
     def update_phase(self, phase):
         self.phase_name = phase.replace(' ', '_').upper()
         phase_id = self._add_phase(self.phase_name)
-        self._db.update_value('job', 'phase_id', phase_id, 'id="{0}"'.format(self.id))
+        # self._db.update_value('jobs', 'phase_id', phase_id, 'id="{0}"'.format(self.id))
 
     def finished(self, status=SUCCESSFUL, condition=None):
         log_hr()

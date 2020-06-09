@@ -2,15 +2,23 @@ from library.bootstrap import Constants
 from library.interfaces.sql_database import Database, query_result_to_dict
 
 
-def set_bread_crumb(strategy, signals, trades, valuation):
-    BreadCrumb(strategy=strategy, data=float(valuation), bread_crumb_type=BreadCrumb.VALUATION)
-    BreadCrumb(strategy=strategy, data=signals, bread_crumb_type=BreadCrumb.SIGNAL)
-    BreadCrumb(strategy=strategy, data=trades, bread_crumb_type=BreadCrumb.TRADE)
+def set_bread_crumb(strategy, signals, trades, valuation, db=None):
+    # TODO, format signals and trades here.
+    signals_string = BreadCrumb.SEPARATOR.join([str(s) for s in signals]) if signals else '-'
+
+    trades = [BreadCrumb.SEPARATOR.join(str(e) for e in t) for t in trades] if trades else None
+    trades_string = BreadCrumb.SEPARATOR.join(trades) if trades else '-'
+
+    BreadCrumb(strategy=strategy, data=float(valuation), bread_crumb_type=BreadCrumb.VALUATION, db=db)
+    BreadCrumb(strategy=strategy, data=signals_string, bread_crumb_type=BreadCrumb.SIGNAL, db=db)
+    BreadCrumb(strategy=strategy, data=trades_string, bread_crumb_type=BreadCrumb.TRADE, db=db)
 
 
 class BreadCrumb:
     TABLE = 'strategy_bread_crumbs'
+    SEPARATOR = ':'
 
+    # Bread crumb types.
     GENERAL = 'general'
     SIGNAL = 'signal'
     TRADE = 'trade'
