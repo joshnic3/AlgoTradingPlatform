@@ -10,6 +10,8 @@ from library.strategy.strategy import Portfolio, Signal
 
 
 class AlpacaInterface:
+    API_ID = 'API_ID'
+    API_SECRET_KEY = 'API_SECRET_KEY'
 
     STATUS = 'status'
     NEW_ORDER = 'new'
@@ -22,8 +24,8 @@ class AlpacaInterface:
     UNITS = 'qty'
     CASH = 'cash'
 
-    def __init__(self, key_id, secret_key, simulator=False):
-        if simulator:
+    def __init__(self, key_id, secret_key, paper=False):
+        if paper:
             base_url = 'https://paper-api.alpaca.markets'
 
         self.headers = {'APCA-API-KEY-ID': key_id, 'APCA-API-SECRET-KEY': secret_key}
@@ -94,13 +96,13 @@ class AlpacaInterface:
 
 class SimulatedExchangeInterface(AlpacaInterface):
 
-    def __init__(self, strategy, run_datetime, cash):
-        AlpacaInterface.__init__(self, '', '', simulator=True)
+    def __init__(self, strategy, cash):
+        AlpacaInterface.__init__(self, '', '', paper=True)
 
         self._portfolio = strategy.portfolio
         self._market_data_loader = strategy.data_loader
+        self._run_datetime = strategy.run_datetime
         self._orders = []
-        self._run_datetime = run_datetime
         self._cash = cash
 
     def _get_simulated_price(self, symbol):

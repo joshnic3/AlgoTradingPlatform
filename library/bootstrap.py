@@ -50,7 +50,7 @@ class Constants:
     _RELATIVE_CONFIGS_PATH = 'configs'
     _RELATIVE_LOGS_PATH = 'logs'
     _RELATIVE_STRATEGIES_PATH = 'strategies'
-    _RELATIVE_REGRESSION_PATH = 'regressions'
+    _RELATIVE_REPORTS_PATH = 'reports'
     _DEVELOPMENT_ENVIRONMENT = 'dev'
     _CONFIG_FILE_EXTENSION = 'json'
     _MANUAL_RUN = 'manual_run'
@@ -69,7 +69,7 @@ class Constants:
         _RELATIVE_CONFIGS_PATH,
         _RELATIVE_LOGS_PATH,
         _RELATIVE_STRATEGIES_PATH,
-        _RELATIVE_REGRESSION_PATH
+        _RELATIVE_REPORTS_PATH
     ]
 
     def __init__(self):
@@ -84,7 +84,7 @@ class Constants:
         self.job_name = None
         self.debug = None
         self.log_path = None
-        self.regression_path = None
+        self.reports_path = None
         self.script = None
         self.run_time = datetime.datetime.now(pytz.timezone(self.TIME_ZONE))
 
@@ -121,7 +121,7 @@ class Constants:
         self.db_path = os.path.join(self.root_path, self.environment, self._RELATIVE_DB_PATH)
         self.configs_path = os.path.join(self.root_path, self.environment, self._RELATIVE_CONFIGS_PATH)
         self.logs_path = os.path.join(self.root_path, self.environment, self._RELATIVE_LOGS_PATH)
-        self.regression_path = os.path.join(self.root_path, self.environment, self._RELATIVE_REGRESSION_PATH)
+        self.reports_path = os.path.join(self.root_path, self.environment, self._RELATIVE_REPORTS_PATH)
 
         # Initiate XML namespace.
         self.xml = StrategyXMLNameSpace(options.xml_file) if options.xml_file else None

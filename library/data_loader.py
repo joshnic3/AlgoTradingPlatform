@@ -1,18 +1,17 @@
 import datetime
-import pytz
-
 from collections import OrderedDict
 
+import pytz
+
 from library.bootstrap import Constants
-from library.interfaces.sql_database import Database, query_result_to_dict
-from library.strategy.bread_crumbs import BreadCrumb
 from library.interfaces.market_data import TickerDataSource
+from library.interfaces.sql_database import Database, query_result_to_dict
+from library.strategy.bread_crumbs import BreadCrumbs
 from library.utilities.onboarding import generate_unique_id
 
 
+# Yes, I know this should probably use Pandas, but I've put too much time in at this point to back out.
 class DataLoader:
-    # Yes, I know this should probably use Pandas, but I've put too much time in at this point to back out.
-
     VALUE_DATA_TYPES = ['valuation']
 
     # Warning types.
@@ -69,7 +68,7 @@ class BreadCrumbsDataLoader(DataLoader):
         DataLoader.__init__(self, self.BREAD_CRUMBS_TIME_SERIES)
 
     def load_bread_crumbs_time_series(self, strategy_name):
-        bread_crumb_rows = self.db.query_table(BreadCrumb.TABLE, 'strategy="{}"'.format(strategy_name))
+        bread_crumb_rows = self.db.query_table(BreadCrumbs.TABLE, 'strategy="{}"'.format(strategy_name))
         if bread_crumb_rows:
             self._add_data(strategy_name, bread_crumb_rows, override=True)
         else:
@@ -158,6 +157,7 @@ class MarketDataLoader(DataLoader):
             warning = [Constants.run_time, self.WARNINGS[self.NO_DATA], data_detail_string]
             self._add_warning(symbol, warning)
 
+    # I still think this should be a separate class, I just don't know how yet.
     def load_latest_ticker(self, symbol, now=None):
         data_detail_string = '{} latest'.format(symbol.upper())
         self.type = MarketDataLoader.LATEST_TICKER

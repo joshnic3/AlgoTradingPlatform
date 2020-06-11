@@ -8,7 +8,7 @@ from library.data_loader import MarketDataLoader, BreadCrumbsDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
 from library.strategy.portfolio import Portfolio
-from library.strategy.bread_crumbs import BreadCrumb
+from library.strategy.bread_crumbs import BreadCrumbs
 from library.utilities.job import is_script_new, Job
 from library.utilities.authentication import public_key_from_private_key, secret_key
 from library.data_loader import DataLoader
@@ -156,9 +156,9 @@ def strategies():
                 way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]:
             data = way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]
 
-            if BreadCrumb.VALUATION in data:
+            if BreadCrumbs.VALUATION in data:
                 # Extract historical valuations.
-                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[BreadCrumb.VALUATION]]
+                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[BreadCrumbs.VALUATION]]
 
                 # Calculate 24hr pnl.
                 now = datetime.datetime.now()

@@ -1,9 +1,9 @@
 import datetime
-import pytz
 
 import library.strategy.functions as strategy_functions
 from library.bootstrap import Constants
 from library.data_loader import MarketDataLoader
+from library.strategy.bread_crumbs import BreadCrumbs
 from library.strategy.context import Context
 from library.strategy.portfolio import Portfolio
 from library.strategy.risk_profile import RiskProfile
@@ -110,7 +110,7 @@ class Strategy:
         self._execution_function = function
         self._execution_parameters = parameters
         self._live_data_source = None
-        self._data_warning_cache = 0
+        self._data_warning_cache = []
 
         self.name = name.lower()
         # This will be overridden for regression testing.
@@ -123,26 +123,7 @@ class Strategy:
         self.data_loader = MarketDataLoader()
         self.risk_profile = risk_profile
         self.execution_options = execution_options
-
-    def load_required_data(self, historical_data=False):
-        # Load required data sets.
-        for required_data_set in self._data_requirements:
-            if required_data_set['type'] == MarketDataLoader.TICKER:
-                this_morning = self.run_datetime.replace(hour=0, minute=0, second=0)
-                self.data_loader.load_tickers(
-                    required_data_set['symbol'],
-                    required_data_set['before'] if 'before' in required_data_set else self.run_datetime,
-                    required_data_set['after'] if 'after' in required_data_set else this_morning,
-                    required=4,
-                    historical_data=historical_data
-                )
-        if self.data_loader.data:
-            Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
-        else:
-            Constants.log.info('No data sets loaded.')
-        if len(self.data_loader.warnings) > self._data_warning_cache:
-            self._data_warning_cache = len(self.data_loader.warnings)
-            Constants.log.warning('Data loader reported {0} warning(s)'.format(len(self.data_loader.warnings)))
+        self.bread_crumbs = BreadCrumbs(self.name, self._db)
 
     @staticmethod
     def _clean_signals(dirty_signals):
@@ -184,6 +165,48 @@ class Strategy:
         # Return cleaned signals.
         return [signals_per_unique_symbol[signal] for signal in unique_symbols]
 
+    def _process_data_warnings(self, data_warnings):
+        # Find any new warning.
+        new_warnings = []
+        for data_warning_type in data_warnings:
+            for data_warning in data_warnings[data_warning_type]:
+                # Format warning.
+                warning = data_warnings[data_warning_type][data_warning]
+                warning_string = BreadCrumbs.SEPARATOR.join(
+                    [e.strftime(Constants.PP_DATETIME_FORMAT) if isinstance(e, datetime.datetime) else str(e)
+                     for e in warning])
+                warning = BreadCrumbs.SEPARATOR.join([data_warning_type, data_warning, warning_string])
+
+                # Process new data warnings.
+                if warning not in self._data_warning_cache:
+                    new_warnings.append(warning)
+                    # Drop data warning bread crumbs.
+                    self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.DATA_WARNING], warning)
+
+        # Process new warnings.
+        if new_warnings:
+            Constants.log.warning('Data loader reported 0 warning(s)'.format(len(self.data_loader.warnings)))
+
+    def load_required_data(self, historical_data=False):
+        # Load required data sets.
+        for required_data_set in self._data_requirements:
+            if required_data_set['type'] == MarketDataLoader.TICKER:
+                this_morning = self.run_datetime.replace(hour=0, minute=0, second=0)
+                self.data_loader.load_tickers(
+                    required_data_set['symbol'],
+                    required_data_set['before'] if 'before' in required_data_set else self.run_datetime,
+                    required_data_set['after'] if 'after' in required_data_set else this_morning,
+                    required=4,
+                    historical_data=historical_data
+                )
+        if self.data_loader.data:
+            Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
+        else:
+            Constants.log.info('No data sets loaded.')
+
+        if self.data_loader.warnings:
+            self._process_data_warnings(self.data_loader.warnings)
+
     def generate_signals(self):
         # load required data.
         if not self.data_loader.data:
@@ -196,14 +219,16 @@ class Strategy:
         # Attempt to execute function.
         try:
             # Build strategy context.
-            context = Context(self._db, self.name, self.run_datetime, self.data_loader.data,
-                                      self._live_data_source)
+            context = Context(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
             parameters = self._execution_parameters
             signals = eval('strategy_functions.{0}(context,parameters)'.format(self._execution_function))
-            return self._clean_signals(signals)
+            clean_signals = self._clean_signals(signals)
+            if clean_signals:
+                self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.SIGNALS], clean_signals)
+            return clean_signals
         except Exception as error:
-            signals = error
             Constants.log.error('Error evaluating strategy "{0}": {1}'.format(self.name, error))
+            self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.STRATEGY_ERROR], error)
             return None
 
 

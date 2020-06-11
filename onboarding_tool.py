@@ -10,10 +10,13 @@ from library.utilities.file import add_dir, parse_wildcards, get_environment_spe
     copy_file, read_json_file
 from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
 
+CONFIG_FILE = 'configs'
+FUNCTIONS = 'functions'
+
 INITIATE_ENVIRONMENT = 'environment'
 ON_BOARD_STRATEGIES = 'strategy'
 SETUP_CRON_JOBS = 'jobs'
-FUNCTIONS = [
+ON_BOARDING_FUNCTIONS = [
     INITIATE_ENVIRONMENT,
     ON_BOARD_STRATEGIES,
     SETUP_CRON_JOBS
@@ -22,11 +25,12 @@ FUNCTIONS = [
 
 def main():
     # Setup parse options, imitate global constants and logs.
-    Constants.parse_arguments(custom_args=['config_file', 'functions'])
+    args = [CONFIG_FILE, FUNCTIONS]
+    Constants.parse_arguments(custom_args=args)
 
     # Which functions will be doe.
     if Constants.configs['functions']:
-        functions_to_do = [f.lower() for f in Constants.configs['functions'].split(',') if f in FUNCTIONS]
+        functions_to_do = [f.lower() for f in Constants.configs[FUNCTIONS].split(',') if f in ON_BOARDING_FUNCTIONS]
     else:
         functions_to_do = FUNCTIONS
 
@@ -40,11 +44,12 @@ def main():
             add_dir(resource_path, backup=True)
 
         # Move config file to environment specific config path.
-        environment_config_path = os.path.join(environment_path, 'configs', os.path.basename(Constants.configs['config_file']))
-        copy_file(Constants.configs['config_file'], environment_config_path)
+        environment_config_path = os.path.join(environment_path, 'configs',
+                                               os.path.basename(Constants.configs[CONFIG_FILE]))
+        copy_file(Constants.configs[CONFIG_FILE], environment_config_path)
 
         # Read application configs.
-        app_configs = read_json_file(Constants.configs['config_file'])
+        app_configs = read_json_file(Constants.configs[CONFIG_FILE])
 
         # Initiate database.
         dbos = [initiate_database(Constants.db_path, d, app_configs['tables'][d], Constants.environment)
@@ -55,7 +60,7 @@ def main():
         db_path = os.path.join(Constants.root_path, Constants.environment, 'data')
         db = Database(db_path, Constants.environment)
         # Load application configs.
-        app_configs = read_json_file(Constants.configs['config_file'])
+        app_configs = read_json_file(Constants.configs[CONFIG_FILE])
 
     if Constants.xml:
         strategy_setup_dict = parse_strategy_setup_from_xml(Constants.xml.path)
@@ -73,7 +78,8 @@ def main():
         # Initiate strategy if it does not exist.
         if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
             # Add portfolio and strategy.
-            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']), strategy_setup_dict['allocation'], strategy_setup_dict['cash'])
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']),
+                                         strategy_setup_dict['allocation'], strategy_setup_dict['cash'])
             add_strategy(db, strategy_dict['name'], portfolio_id)
 
             # Add any assets.

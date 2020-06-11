@@ -100,7 +100,7 @@ class TradeExecutor:
 
             # Create order tuple with trade results.
             if status == Alpaca.FILLED_ORDER:
-                trade = (data[Portfolio.SYMBOL], int(data[Alpaca.FILLED_UNITS]), float(data[Alpaca.FILLED_MEAN_PRICE]))
+                trade = (data[Alpaca.ORDER_SIDE], data[Portfolio.SYMBOL], int(data[Alpaca.FILLED_UNITS]), float(data[Alpaca.FILLED_MEAN_PRICE]))
 
                 # Update portfolio capital.
                 change_in_capital = (int(data[Alpaca.FILLED_UNITS]) * float(data[Alpaca.FILLED_MEAN_PRICE])) * 1 \
@@ -108,7 +108,7 @@ class TradeExecutor:
                 self.portfolio.cash += change_in_capital
 
                 # Update portfolio assets.
-                change_in_units = int(trade[1]) * 1 if data[Alpaca.ORDER_SIDE] == Signal.BUY else -1
+                change_in_units = int(trade[2]) * 1 if data[Alpaca.ORDER_SIDE] == Signal.BUY else -1
                 self.portfolio.assets[data[Portfolio.SYMBOL]][Portfolio.UNITS] += change_in_units
 
                 # Add to processed trades list.
@@ -121,4 +121,4 @@ class TradeExecutor:
     def update_portfolio_db(self):
         self.portfolio.sync_with_exchange(self.exchange)
         self.portfolio.update_db()
-        Constants.log.info('Updated portfolio.')
+        Constants.log.info('Updated portfolio in database.')
