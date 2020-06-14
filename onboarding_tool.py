@@ -1,127 +1,139 @@
-import sys
 import os
-import optparse
+import sys
 
 from crontab import CronTab
 
-from library.onboarding_utils import setup_database_environment_path, add_twap_required_tickers, add_data_source, initiate_database
-from library.file_utils import edit_config_file, parse_configs_file, parse_wildcards
-from library.db_interface import initiate_database
-from library.data_source_utils import initiate_data_source_db
+from library.bootstrap import Constants, log_hr
+from library.interfaces.sql_database import initiate_database, Database
+from library.strategy.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml
+from library.utilities.file import add_dir, parse_wildcards, get_environment_specific_path, \
+    copy_file, read_json_file
+from library.utilities.onboarding import add_strategy, add_portfolio, add_assets
+
+CONFIG_FILE = 'configs'
+FUNCTIONS = 'functions'
+
+INITIATE_ENVIRONMENT = 'environment'
+ON_BOARD_STRATEGIES = 'strategy'
+SETUP_CRON_JOBS = 'jobs'
+ON_BOARDING_FUNCTIONS = [
+    INITIATE_ENVIRONMENT,
+    ON_BOARD_STRATEGIES,
+    SETUP_CRON_JOBS
+]
 
 
-class ApplicationOnboarder:
+def main():
+    # Setup parse options, imitate global constants and logs.
+    args = [CONFIG_FILE, FUNCTIONS]
+    Constants.parse_arguments(custom_args=args)
 
-    def __init__(self, configs_path, application_name, environment):
-        self.name = application_name
-        self._app_configs_file_path = os.path.join(configs_path, '{0}_config.json'.format(self.name))
-        self._app_configs = parse_configs_file({'config_file': self._app_configs_file_path})
-        self._environment = environment.lower()
+    # Which functions will be doe.
+    if Constants.configs['functions']:
+        functions_to_do = [f.lower() for f in Constants.configs[FUNCTIONS].split(',') if f in ON_BOARDING_FUNCTIONS]
+    else:
+        functions_to_do = FUNCTIONS
 
-    def deploy(self):
-        db = initiate_database(self._app_configs['db_root_path'], self.name, self._app_configs['schema'], self._environment)
-        self._write_setup_data_to_db(db)
-        self._add_environment_to_app_config()
-        if not self._environment == 'dev':
-            self._generate_deployment_script()
-            self._setup_cron_jobs()
+    if INITIATE_ENVIRONMENT in functions_to_do:
+        Constants.log.info('Initiating environment.')
+        # Generate resource directories.
+        environment_path = get_environment_specific_path(Constants.root_path, Constants.environment)
+        add_dir(environment_path, backup=True)
+        for directory in Constants.RESOURCE_DIRS:
+            resource_path = os.path.join(environment_path, directory)
+            add_dir(resource_path, backup=True)
 
-    def _write_setup_data_to_db(self, db):
-        # Setup test for data_loader
-        required_tickers = [['0', 'NMR', 'FML', '15', '2'],
-                            ['1', 'MSFT', 'FML', '15', '2'],
-                            ['2', 'MS', 'FML', '10', '3'],
-                            ['3', 'JPM', 'FML', '10', '3']]
+        # Move config file to environment specific config path.
+        environment_config_path = os.path.join(environment_path, 'configs',
+                                               os.path.basename(Constants.configs[CONFIG_FILE]))
+        copy_file(Constants.configs[CONFIG_FILE], environment_config_path)
 
-        # DB can be passed in here, will be far neater.
-        add_twap_required_tickers(db, required_tickers)
-        ds_db = initiate_data_source_db(self._app_configs['db_root_path'], self._environment.lower())
-        add_data_source(ds_db, 'FML',
-                        os.path.join(self._app_configs['configs_root_path'], 'fml_data_source_config.json'))
+        # Read application configs.
+        app_configs = read_json_file(Constants.configs[CONFIG_FILE])
 
-    def _generate_deployment_script(self):
-        file_path = 'deploy_{}.sh'.format(self._environment)
-        deploy_template = [
-            '#!/bin/sh',
-            'echo Deploying %e%'
-            'exec git stash',
-            'exec git pull origin %e%',
-            'exec git checkout %e%',
-            'if [ $(git rev-parse --abbrev-ref HEAD) = %e% ]; then',
-            '   echo Successfully deployed %e%!',
-            'else',
-            '   echo Failed to deployed %e%.',
-            'fi'
-        ]
-        with open(file_path, 'w') as df:
-            for line in deploy_template:
-                line_str = line.replace('%e%', self._environment) + '\n'
-                df.write(line_str)
+        # Initiate database.
+        dbos = [initiate_database(Constants.db_path, d, app_configs['tables'][d], Constants.environment)
+                for d in app_configs['tables']]
+        db = dbos[0]
+    else:
+        # Initiate database
+        db_path = os.path.join(Constants.root_path, Constants.environment, 'data')
+        db = Database(db_path, Constants.environment)
+        # Load application configs.
+        app_configs = read_json_file(Constants.configs[CONFIG_FILE])
 
-    def _add_environment_to_app_config(self):
-        environments = self._app_configs['environments']
-        if self._environment not in environments:
-            edit_config_file(self._app_configs_file_path, 'environments', environments.append(self._environment))
+    if Constants.xml:
+        strategy_setup_dict = parse_strategy_setup_from_xml(Constants.xml.path)
+        strategy_dict = parse_strategy_from_xml(Constants.xml.path)
+    else:
+        strategy_setup_dict = None
+        strategy_dict = None
 
-    def _setup_cron_jobs(self):
-        # Will re-write over existing jobs for now.
-        cron = CronTab(user=os.getlogin())
-        cron.remove_all()
+    if ON_BOARD_STRATEGIES in functions_to_do:
+        if not strategy_setup_dict or not strategy_dict:
+            raise Exception('XML file is required to on board a strategy.')
 
-        # Get environment information.
-        repo_path = os.path.dirname(__file__)
+        Constants.log.info('Loading strategy "{}".'.format(strategy_dict['name']))
+
+        # Initiate strategy if it does not exist.
+        if not db.get_one_row('strategies', 'name="{0}"'.format(strategy_dict['name'])):
+            # Add portfolio and strategy.
+            portfolio_id = add_portfolio(db, '_{0}_portfolio'.format(strategy_dict['name']),
+                                         strategy_setup_dict['allocation'], strategy_setup_dict['cash'])
+            add_strategy(db, strategy_dict['name'], portfolio_id)
+
+            # Add any assets.
+            for asset in strategy_setup_dict['assets']:
+                add_assets(db, portfolio_id, asset['symbol'])
+
+        # Copy XML file to strategy directory.
+        environment_path = get_environment_specific_path(Constants.root_path, Constants.environment)
+        strategies_path = os.path.join(environment_path, 'strategies', '{0}.xml'.format(strategy_dict['name']))
+        copy_file(Constants.xml.path, strategies_path)
+
+    if SETUP_CRON_JOBS in functions_to_do:
+        Constants.log.info('Setting up cron jobs.')
+        if not strategy_setup_dict or not strategy_dict:
+            raise Exception('XML file is required to add cron jobs.')
+
+        # Only existing reset jobs when initialising the environment.
+        reset = True if INITIATE_ENVIRONMENT in functions_to_do else False
+        # interpreter = '/home/robot/projects/AlgoTradingPlatform/venv/bin/python3'
         interpreter = 'python3'
+        code_path = '/home/robot/projects/AlgoTradingPlatform'
 
-        # Create jobs.
-        jobs = self._app_configs['jobs']
-        for job in jobs:
-            # Get and format information.
-            schedule = jobs[job]['schedule']
-            script_name = '{0}.py'.format(jobs[job]['script'])
-            script_path = os.path.join(repo_path, script_name)
-            args_template = jobs[job]['args']
-            args = parse_wildcards(args_template,
-                                   {'%e%': self._environment,
-                                    '%j%': job,
-                                    '%c%': self._app_configs['configs_root_path']})
-            cron_job_template = [interpreter, script_path, args]
-            command = ' '.join(cron_job_template)
+        # Initiate cron object.
+        cron = CronTab(user=os.getlogin())
+        if reset:
+            cron.remove_all()
 
-            # Add job.
+        # Create cron jobs from strategy schedule.
+        for job in strategy_setup_dict['jobs']:
+            # Extract details.
+            name = job['name']
+            script = job['script']
+            schedule = job['schedule']
+
+            # Parse script arguments.
+            environment_path = get_environment_specific_path(Constants.root_path, Constants.environment)
+            strategies_path = os.path.join(environment_path, 'strategies', '{0}.xml'.format(strategy_dict['name']))
+            script_args_template = app_configs['script_details'][script]['args']
+            script_args = parse_wildcards(script_args_template, {'%e%': Constants.environment,
+                                                                     '%j%': '{0}_scheduled'.format(name),
+                                                                     '%r%': Constants.root_path,
+                                                                     '%x%': strategies_path})
+
+            # Generate command.
+            command_template = [interpreter, os.path.join(code_path, '{0}.py'.format(script)), script_args]
+            command = ' '.join(command_template)
+
+            # Create cron jobs.
             job = cron.new(command=command)
             job.setall(schedule)
             cron.write()
 
-
-def parse_cmdline_args():
-    parser = optparse.OptionParser()
-    parser.add_option('-e', '--environment', dest="environment")
-    parser.add_option('-r', '--root_path', dest="root_path")
-    parser.add_option('-a', '--applications', dest="applications", default=None)
-
-    options, args = parser.parse_args()
-    return {
-        "environment": options.environment.lower(),
-        "configs_path": options.root_path,
-        "applications": options.applications,
-        "db_root_path": os.path.join(options.root_path, 'data'),
-        "configs_root_path": os.path.join(options.root_path, 'configs'),
-        "logs_root_path": os.path.join(options.root_path, 'logs')
-    }
-
-
-def main():
-    configs = parse_cmdline_args()
-
-    if configs['applications']:
-        for app in configs['applications'].split(','):
-            app = app.lower()
-            app_configs_file_path = os.path.join(configs['configs_root_path'], '{0}_config.json'.format(app))
-            app_configs = parse_configs_file({'config_file': app_configs_file_path})
-            setup_database_environment_path(app_configs['db_root_path'], app_configs_file_path, app_configs['schema'], configs['environment'])
-            onboarder = ApplicationOnboarder(configs['configs_root_path'], app, configs['environment'])
-            onboarder.deploy()
-
+    log_hr()
+    Constants.log.info('On-boarding finished.')
     return 0
 
 
