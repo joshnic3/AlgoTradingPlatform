@@ -18,7 +18,7 @@ class StrategyExecutor:
         self.strategy = strategy_object
         if simulate_exchange:
             # TODO Getting issues with consistency again.
-            exchange = SimulatedExchangeInterface(self.strategy, 100_000.00)
+            exchange = SimulatedExchangeInterface(self.strategy, 100000.00)
         else:
             exchange = AlpacaInterface(Constants.configs[AlpacaInterface.API_ID],
                                        Constants.configs[AlpacaInterface.API_SECRET_KEY], paper=True)
