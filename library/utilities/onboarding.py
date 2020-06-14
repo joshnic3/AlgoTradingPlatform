@@ -5,7 +5,7 @@ from library.interfaces.sql_database import generate_unique_id
 
 def generate_unique_id(seed):
     hash_object = md5(seed.encode())
-    return hash_object.hexdigest()
+    return str(hash_object.hexdigest())
 
 
 def add_strategy(db, name, porfolio_id):

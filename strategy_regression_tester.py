@@ -6,7 +6,7 @@ import sys
 import pytz
 
 from library.bootstrap import Constants, log_hr
-from library.data_loader import BreadCrumbsDataLoader
+from library.data_loader import BreadCrumbsDataLoader, MarketDataLoader
 from library.interfaces.sql_database import initiate_database, generate_unique_id
 from library.strategy.bread_crumbs import evaluate_strategy_bread_crumbs
 from library.strategy.executor import StrategyExecutor
@@ -23,6 +23,18 @@ VERBOSE = 'verbose'
 EXPORT = 'export'
 
 
+def _is_datetime_is_in_the_future(datetime_obj):
+    if datetime_obj > Constants.run_time.replace(tzinfo=None):
+        return True
+    return False
+
+
+def _is_datetime_later(later_datetime_obj, earlier_datetime_obj):
+    if later_datetime_obj > earlier_datetime_obj:
+        return True
+    return False
+
+
 class RegressionTester:
     DB_NAME = 'regression_testing'
 
@@ -30,15 +42,22 @@ class RegressionTester:
         self._valuation_time_series = []
         self._verbose = verbose
 
-        # Create and initiate temporary database (will use market data as normal).
-        schema = Constants.configs['tables'][Constants.DB_NAME]
+        # Create temporary directory.
         self.temp_directory = os.path.join(Constants.db_path, generate_unique_id(Constants.run_time))
         os.mkdir(self.temp_directory)
+
+        # Create and initiate temporary ATP database. (Could have the option to use current ATP db)
+        schema = Constants.configs['tables'][Constants.DB_NAME]
         self.db = initiate_database(self.temp_directory, Constants.APP_NAME, schema, Constants.environment)
+
+        # Create and initiate temporary market data database. (Probably should copy current market data db)
+        schema = Constants.configs['tables'][MarketDataLoader.DB_NAME]
+        self.market_data_db = initiate_database(self.temp_directory, MarketDataLoader.DB_NAME, schema,
+                                                Constants.environment)
 
         self.strategy = None
         self.executor = None
-        self.exchange_cash = 300_000
+        self.exchange_cash = 300000
         self.run_calendar = [Constants.run_time]
         self.run_days = 0
 
@@ -93,6 +112,9 @@ class RegressionTester:
             execution_options=strategy_dict['execution_options']
         )
 
+        # Override market data loader database.
+        self.strategy.data_loader.db = self.market_data_db
+
         # Initiate strategy executor.
         self.executor = StrategyExecutor(self.strategy, suppress_log=not self._verbose, simulate_exchange=True)
 
@@ -100,7 +122,7 @@ class RegressionTester:
         # Make list of all days in between start and end date times.
         time_zone = pytz.timezone(Constants.TIME_ZONE)
         no_of_days = (end_datetime - start_datetime).days + 1
-        run_days = [(start_datetime + datetime.timedelta(days=i)).astimezone(time_zone) for i in range(no_of_days)]
+        run_days = [(start_datetime + datetime.timedelta(days=i)).replace(tzinfo=time_zone) for i in range(no_of_days)]
 
         # Remove weekends.
         run_days = [d for d in run_days if d.weekday() in [0, 1, 2, 3, 4]]
@@ -217,8 +239,17 @@ def main():
 
     # Generate custom run calendar, default is to run for now.
     if START_DATE in Constants.configs and END_DATE in Constants.configs and TIMES in Constants.configs:
+        # Extract dates from command line args.
         start_date = datetime.datetime.strptime(Constants.configs[START_DATE], Constants.DATETIME_FORMAT[:6])
         end_date = datetime.datetime.strptime(Constants.configs[END_DATE], Constants.DATETIME_FORMAT[:6])
+
+        # Validate dates.
+        if _is_datetime_is_in_the_future(end_date):
+            raise Exception('End date cannot be in the future.')
+        if not _is_datetime_later(end_date, start_date):
+            raise Exception("End date must be after start date.")
+
+        # Generate run calendar.
         run_times = Constants.configs[TIMES].split(',')
         regression_tester.generate_run_calendar(start_date, end_date, run_times)
     else:
