@@ -30,6 +30,8 @@ class TradeExecutor:
         else:
             units = self._default_no_of_units
 
+        units = units * 4
+
         # Ensure we never propose trading negative trades.
         if units < 0:
             Constants.log.error('Trade executor accidentally proposed trading negative units, overriding to zero.')

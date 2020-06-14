@@ -6,7 +6,7 @@ import sys
 import pytz
 
 from library.bootstrap import Constants, log_hr
-from library.data_loader import BreadCrumbsDataLoader
+from library.data_loader import BreadCrumbsDataLoader, MarketDataLoader
 from library.interfaces.sql_database import initiate_database, generate_unique_id
 from library.strategy.bread_crumbs import evaluate_strategy_bread_crumbs
 from library.strategy.executor import StrategyExecutor
@@ -42,11 +42,18 @@ class RegressionTester:
         self._valuation_time_series = []
         self._verbose = verbose
 
-        # Create and initiate temporary database (will use market data as normal).
-        schema = Constants.configs['tables'][Constants.DB_NAME]
+        # Create temporary directory.
         self.temp_directory = os.path.join(Constants.db_path, generate_unique_id(Constants.run_time))
         os.mkdir(self.temp_directory)
+
+        # Create and initiate temporary ATP database. (Could have the option to use current ATP db)
+        schema = Constants.configs['tables'][Constants.DB_NAME]
         self.db = initiate_database(self.temp_directory, Constants.APP_NAME, schema, Constants.environment)
+
+        # Create and initiate temporary market data database. (Probably should copy current market data db)
+        schema = Constants.configs['tables'][MarketDataLoader.DB_NAME]
+        self.market_data_db = initiate_database(self.temp_directory, MarketDataLoader.DB_NAME, schema,
+                                                Constants.environment)
 
         self.strategy = None
         self.executor = None
@@ -104,6 +111,9 @@ class RegressionTester:
             RiskProfile(strategy_dict['risk_profile']),
             execution_options=strategy_dict['execution_options']
         )
+
+        # Override market data loader database.
+        self.strategy.data_loader.db = self.market_data_db
 
         # Initiate strategy executor.
         self.executor = StrategyExecutor(self.strategy, suppress_log=not self._verbose, simulate_exchange=True)
