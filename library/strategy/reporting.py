@@ -1,11 +1,10 @@
 import csv
 import datetime
-from collections import namedtuple
 
 from library.bootstrap import Constants
 from library.data_loader import BreadCrumbsDataLoader
 from library.interfaces.sql_database import Database
-from library.strategy.bread_crumbs import BreadCrumbs
+from library.strategy.bread_crumbs import BreadCrumbs, evaluate_strategy_bread_crumbs
 
 
 def format_datetime_str(datetime_string):
@@ -13,46 +12,6 @@ def format_datetime_str(datetime_string):
         return None
     date_time = datetime.datetime.strptime(datetime_string, Constants.DATETIME_FORMAT)
     return date_time.strftime(Constants.PP_DATETIME_FORMAT)
-
-
-def evaluate_strategy_bread_crumbs(bread_crumbs):
-    timestamp_index = 3
-    type_index = 2
-    data_index = 4
-    crumb_types_counts = {
-        BreadCrumbs.TYPES[BreadCrumbs.SIGNALS]: 0,
-        BreadCrumbs.TYPES[BreadCrumbs.TRADES]: 0,
-        BreadCrumbs.TYPES[BreadCrumbs.DATA_WARNING]: 0,
-        BreadCrumbs.TYPES[BreadCrumbs.STRATEGY_ERROR]: 0
-    }
-
-    # Calculate number of days the strategy has run for.
-    run_days = set(
-        [datetime.datetime.strptime(t[timestamp_index], Constants.DATETIME_FORMAT).replace(hour=0, minute=0, second=0)
-         for t in bread_crumbs]
-    )
-
-    # Count type occurrences, and extract valuations.
-    valuations = []
-    for bread_crumb in bread_crumbs:
-        for crumb_type in crumb_types_counts:
-            if bread_crumb[type_index] == crumb_type:
-                crumb_types_counts[crumb_type] += 1
-
-            # Extract valuation.
-            if bread_crumb[type_index] == BreadCrumbs.TYPES[BreadCrumbs.VALUATION]:
-                valuations.append(float(bread_crumb[data_index]))
-
-    # Return result as named tuple.
-    Point = namedtuple('Point', 'signal_ratio trade_ratio, pnl, data_warning_count, strategy_error_count, run_days')
-    return Point(
-        round(crumb_types_counts[BreadCrumbs.TYPES[BreadCrumbs.SIGNALS]] / len(run_days), 2),
-        round(crumb_types_counts[BreadCrumbs.TYPES[BreadCrumbs.TRADES]] / len(run_days), 2),
-        valuations[-1] - valuations[0] if run_days else 0.0,
-        crumb_types_counts[BreadCrumbs.TYPES[BreadCrumbs.DATA_WARNING]],
-        crumb_types_counts[BreadCrumbs.TYPES[BreadCrumbs.STRATEGY_ERROR]],
-        len(run_days)
-    )
 
 
 def export_strategy_bread_crumbs_to_csv(strategy, csv_file_path, regression_db=None):
@@ -67,12 +26,15 @@ def export_strategy_bread_crumbs_to_csv(strategy, csv_file_path, regression_db=N
     # Generate meta data.
     results = evaluate_strategy_bread_crumbs(bread_crumbs)
     meta_data = [
-        ['strategy', 'run days', 'signal ratio', 'trade ratio', 'pnl', 'data_warning_count', 'strategy_error_count'],
-        [strategy.name, str(results.run_days), str(results.signal_ratio), str(results.trade_ratio), str(results.pnl),
+        ['strategy', 'runs', 'signal ratio', 'trade ratio', 'pnl', 'data_warning_count', 'strategy_error_count'],
+        [strategy.name, str(results.runs), str(results.signal_ratio), str(results.trade_ratio), str(results.pnl),
          str(results.data_warning_count), str(results.strategy_error_count)]]
 
     # Generate bread crumb headers.
     headers = Constants.configs['tables'][Constants.APP_NAME][BreadCrumbs.TABLE]
+
+    # Reverse bread crumbs so latest is shown first.
+    bread_crumbs.reverse()
 
     # Write bread crumbs to csv file.
     with open(csv_file_path, 'w') as csv_file:

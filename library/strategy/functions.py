@@ -6,6 +6,11 @@ from library.data_loader import MarketDataLoader
 from library.bootstrap import Constants
 
 
+TEST = 'test'
+PAIRS = 'pairs'
+LIST = [TEST, PAIRS]
+
+
 def _get_latest_value(context, symbol):
     return float(context.data[MarketDataLoader.TICKER][symbol][-1][1])
 
@@ -32,7 +37,6 @@ def test(context, parameters):
 
 
 def pairs(context, parameters):
-
     # Get all ticker data for both symbols from the last hour.
     one_hour_ago = _time_minutes_ago(context, int(parameters['minutes_to_look_back']))
     a_values = _get_values_in_datetime_range(context, parameters['symbol_a'], one_hour_ago, context.now)

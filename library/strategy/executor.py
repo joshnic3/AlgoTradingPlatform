@@ -17,11 +17,13 @@ class StrategyExecutor:
 
         self.strategy = strategy_object
         if simulate_exchange:
+            # TODO Getting issues with consistency again.
             exchange = SimulatedExchangeInterface(self.strategy, 100_000.00)
         else:
             exchange = AlpacaInterface(Constants.configs[AlpacaInterface.API_ID],
                                        Constants.configs[AlpacaInterface.API_SECRET_KEY], paper=True)
         self.trade_executor = TradeExecutor(self.strategy, exchange)
+        self.finish_condition = None
 
     def _update_phase(self, phase_string):
         if self._job_object:
@@ -39,11 +41,11 @@ class StrategyExecutor:
         # Generate signals.
         signals = self.strategy.generate_signals()
 
-        # Trade Executor.
+        # Trade if we want to.
         trades = None
         if signals:
-            self._log('Generated {0} valid signal(s): {1}.'.format(len(signals), ', '.join([str(s) for s in signals])))
             # Propose trades.
+            self._log('Generated {0} valid signal(s): {1}.'.format(len(signals), ', '.join([str(s) for s in signals])))
             self._update_phase('proposing trades')
             proposed_trades = self.trade_executor.generate_trades_from_signals(signals)
 
@@ -54,22 +56,32 @@ class StrategyExecutor:
                     self._update_phase('executing trades')
                     executed_order_ids = self.trade_executor.execute_trades(proposed_trades)
                     self._update_phase('processing trades')
-                    trades = self.trade_executor.process_executed_trades(executed_order_ids, suppress_log=True)
+                    trades = self.trade_executor.process_executed_trades(executed_order_ids,
+                                                                         suppress_log=self._suppress_log)
                     self._log('Executed {0}/{1} trades successfully.'.format(len(trades), len(executed_order_ids)))
-                else:
-                    self._log('Produced {0} trade(s).'.format(len(proposed_trades)))
+                    self.strategy.bread_crumbs.drop(self.strategy.run_datetime, BreadCrumbs.TRADES,
+                                                    [BreadCrumbs.SEPARATOR.join([str(e) for e in t]) for t in trades]
+                                                    if trades else None)
 
-        # Update save portfolio to database.
+        # Now all the work is done, update portfolio to database.
         self.trade_executor.update_portfolio_db()
 
-        # Drop bread crumbs for data outside of the strategy object.
-        if trades:
-            self.strategy.bread_crumbs.drop(self.strategy.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.TRADES],
-                                            [BreadCrumbs.SEPARATOR.join([str(e) for e in t]) for t in trades]
-                                            if trades else None)
+        # Set finish condition.
+        if not signals:
+            self.finish_condition = 'no signals'
+        elif trades and self._suppress_trades:
+            self._log('Produced {0} trade(s).'.format(len(proposed_trades)))
+            self.finish_condition = 'suppressed trades'
+        elif not trades:
+            self.finish_condition = 'no trades'
+        else:
+            self.finish_condition = None
 
-        self.strategy.bread_crumbs.drop(self.strategy.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.VALUATION],
+        # Drop valuation bread crumb.
+        self.strategy.bread_crumbs.drop(self.strategy.run_datetime, BreadCrumbs.VALUATION,
                                         self.strategy.portfolio.valuate())
+
+        # Return final valuation.
         return self.trade_executor.portfolio.valuate()
 
     def generate_strategy_report(self):

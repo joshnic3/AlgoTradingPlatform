@@ -1,17 +1,21 @@
 import datetime
 import json
+import os
 
 from flask import Flask, request
+
+import strategy_regression_tester
+import strategy_executor
 
 from library.bootstrap import Constants
 from library.data_loader import MarketDataLoader, BreadCrumbsDataLoader
 from library.interfaces.exchange import AlpacaInterface
 from library.interfaces.sql_database import Database, query_result_to_dict
+from library.strategy.bread_crumbs import BreadCrumbs, group_bread_crumbs_by_run_time
 from library.strategy.portfolio import Portfolio
-from library.strategy.bread_crumbs import BreadCrumbs
-from library.utilities.job import is_script_new, Job
 from library.utilities.authentication import public_key_from_private_key, secret_key
-from library.data_loader import DataLoader
+from library.utilities.job import is_script_new, Job
+from library.utilities.script_runner import ScriptRunner
 
 app = Flask(__name__)
 
@@ -24,11 +28,11 @@ def int_to_str(value_int):
     return '{:,d}'.format(value_int)
 
 
-def format_datetime_str(datetime_string):
+def format_datetime_str(datetime_string, date_time_format=Constants.PP_TIME_FORMAT):
     if datetime_string is None:
         return None
     date_time = datetime.datetime.strptime(datetime_string, Constants.DATETIME_FORMAT)
-    return date_time.strftime(Constants.PP_TIME_FORMAT)
+    return date_time.strftime(date_time_format)
 
 
 def response(status, data=None):
@@ -66,7 +70,7 @@ def exchange_open():
     if client_ip not in Constants.configs['authorised_ip_address']:
         return response(401, 'Client is not authorised.')
 
-    exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
+    exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], paper=True)
     return response(200, str(exchange.is_exchange_open()))
 
 
@@ -78,7 +82,7 @@ def tick_capture_job():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database()
+    db = Database(name=Job.DB_NAME)
     start_time_string, job_id = db.get_one_row('jobs', 'script="{}"'.format('tick_capture'), 'max(start_time), id')
     data = {
         'start_time': format_datetime_str(start_time_string),
@@ -128,8 +132,6 @@ def market_data():
 
 @app.route('/strategies')
 def strategies():
-    # Returns strategy row as dict, will return for all strategies for for one specified by provided strategy_id
-
     # Authenticate.
     client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
     if client_ip not in Constants.configs['authorised_ip_address']:
@@ -146,41 +148,27 @@ def strategies():
     else:
         strategies_rows = db.query_table('strategies')
 
+    crumb_timestamp = BreadCrumbsDataLoader.TIMESTAMP
+    crumb_type = BreadCrumbsDataLoader.TYPE
+    crumb_data = BreadCrumbsDataLoader.DATA
+
     strategy_table_schema = Constants.configs['tables'][Constants.DB_NAME]['strategies']
     strategies_as_dict = query_result_to_dict(strategies_rows, strategy_table_schema)
     for strategy in strategies_as_dict:
         # Get historical valuations from way points.
-        way_point_data_loader = BreadCrumbsDataLoader()
-        way_point_data_loader.load_bread_crumbs_time_series(strategy['name'])
-        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in \
-                way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]:
-            data = way_point_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]
+        bread_crumbs_data_loader = BreadCrumbsDataLoader()
+        bread_crumbs_data_loader.load_bread_crumbs_time_series(strategy['name'])
+        bread_crumbs = bread_crumbs_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][strategy['name']]
+        valuation_type = BreadCrumbs.VALUATION
+        valuations = [(b[crumb_timestamp], float(b[crumb_data])) for b in bread_crumbs if b[crumb_type] == valuation_type]
 
-            if BreadCrumbs.VALUATION in data:
-                # Extract historical valuations.
-                valuations = [[datetime.datetime.strptime(v[0], Constants.DATETIME_FORMAT), float(v[1])] for v in data[BreadCrumbs.VALUATION]]
-
-                # Calculate 24hr pnl.
-                now = datetime.datetime.now()
-                twenty_four_hrs_ago = now - datetime.timedelta(hours=24)
-                twenty_four_hour_valuations = [d[1] for d in valuations if twenty_four_hrs_ago < d[0] < now]
-
-                # Format data.
-                if twenty_four_hour_valuations:
-                    formatted_pnl = float_to_str(sum(twenty_four_hour_valuations) / len(twenty_four_hour_valuations))
-                else:
-                    formatted_pnl = '-'
-                formatted_valuations = [[v[0].strftime(Constants.PP_TIME_FORMAT), v[1]] for v in valuations]
-            else:
-                formatted_pnl = 0
-                formatted_valuations = None
-
-            strategy['historical_valuations'] = formatted_valuations
-            strategy['pnl'] = formatted_pnl
+        strategy['historical_valuations'] = [[format_datetime_str(v[0]), v[1]] for v in valuations]
+        strategy['pnl'] = float_to_str(float(valuations[-1][1] - valuations[0][1]))
 
     return response(200, strategies_as_dict)
 
 
+# TODO, This is disgusting
 @app.route('/strategy_bread_crumbs')
 def strategy_bread_crumbs():
     # Returns data as time series.
@@ -195,30 +183,22 @@ def strategy_bread_crumbs():
     if 'id' in params:
         bread_crumb_data_loader = BreadCrumbsDataLoader()
         bread_crumb_data_loader.load_bread_crumbs_time_series(params['id'])
-        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in \
-                bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]:
+        if BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES in bread_crumb_data_loader.data:
             # Extract data from data loader.
-            data = bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]
+            bread_crumbs = bread_crumb_data_loader.data[BreadCrumbsDataLoader.BREAD_CRUMBS_TIME_SERIES][params['id']]
 
-            # Group data by timestamp.
-            time_series = {}
-            for data_type in data:
-                for element in data[data_type]:
-                    data_point = float_to_str(float(element[1])) if data_type in DataLoader.VALUE_DATA_TYPES else element[1]
-                    if element[0] not in time_series:
-                        time_series[element[0]] = {data_type: data_point}
-                    else:
-                        time_series[element[0]][data_type] = data_point
-
-            # Refactor into time series.
-            time_series = [[r, time_series[r]['signal'], time_series[r]['trade'], time_series[r]['valuation']] for r in time_series]
+            # Group data by runtime.
+            grouped_by_run_time_series = group_bread_crumbs_by_run_time(bread_crumbs, replace_blanks=True)
 
             # Sort by datetime descending.
-            time_series = sorted(time_series, key=lambda x: x[0], reverse=True)
+            bread_crumb_time_series = sorted(list(grouped_by_run_time_series), key=lambda x: x[0], reverse=True)
 
-            # Format datetime. Have to do after sorting as full datetime string is required to sort accurately.
-            time_series = [[format_datetime_str(d[0]), d[1], d[2], d[3]] for d in time_series]
-            return response(200, time_series)
+            # Format datetime strings.
+            for run_time in grouped_by_run_time_series:
+                run_time[0] = format_datetime_str(run_time[0], date_time_format=Constants.PP_DATETIME_FORMAT)
+
+            # Return result.
+            return response(200, bread_crumb_time_series)
         else:
             return response(401, 'No way point data found.')
 
@@ -275,7 +255,7 @@ def assets():
 
     if 'id' in params:
         db = Database()
-        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], simulator=True)
+        exchange = AlpacaInterface(Constants.configs['API_ID'], Constants.configs['API_SECRET_KEY'], paper=True)
         portfolio_obj = Portfolio(params['id'], db)
         portfolio_obj.sync_with_exchange(exchange)
         for asset in portfolio_obj.assets:
@@ -327,7 +307,7 @@ def log():
         return response(401, 'Client is not authorised.')
 
     # Initiate database connection.
-    db = Database()
+    db = Database(name=Job.DB_NAME)
 
     # Extract any parameters from url.
     params = {x: request.args[x] for x in request.args if x is not None}
@@ -336,10 +316,64 @@ def log():
         job_row = db.get_one_row('jobs', 'id="{0}"'.format(params['id']))
         if job_row is None:
             return response(401, 'Job doesnt exist.')
-        job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Constants.DB_NAME]['jobs'])[0]
+        job_dict = query_result_to_dict([job_row], Constants.configs['tables'][Job.DB_NAME]['jobs'])[0]
         with open(job_dict['log_path'], 'r') as file:
             data = file.read().replace('\n', '<br>')
         return response(200, data)
+
+    return response(401, 'Job id required.')
+
+
+@app.route('/run/regression')
+def run_regression():
+    # Returns log text for provided job id.
+
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        script_runner = ScriptRunner()
+        arguments = {
+            'xml_file': os.path.join(Constants.root_path, Constants.environment, 'strategies',
+                                     '{}.xml'.format(params['id'])),
+            strategy_regression_tester.START_DATE: '20200601',
+            strategy_regression_tester.END_DATE: '20200612',
+            strategy_regression_tester.TIMES: '1600,1730,1800,1830,1900,1930,2000,2030',
+            strategy_regression_tester.EXPORT: True,
+        }
+        script_runner.run_asynchronously(ScriptRunner.REGRESSION_TESTER, 'regression', arguments)
+        return response(200, 0)
+
+    return response(401, 'Job id required.')
+
+
+@app.route('/run/dry_run')
+def run_dry_run():
+    # Returns log text for provided job id.
+
+    # Authenticate.
+    client_ip = request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+    if client_ip not in Constants.configs['authorised_ip_address']:
+        return response(401, 'Client is not authorised.')
+
+    # Extract any parameters from url.
+    params = {x: request.args[x] for x in request.args if x is not None}
+
+    if 'id' in params:
+        script_runner = ScriptRunner()
+        arguments = {
+            'xml_file': os.path.join(Constants.root_path, Constants.environment,
+                                     'strategies', '{}.xml'.format(params['id'])),
+            strategy_executor.SUPPRESS_TRADES: True,
+            strategy_executor.EXPORT_CSV: True
+        }
+        script_runner.run_asynchronously(ScriptRunner.STRATEGY_EXECUTOR, 'dry_run', arguments)
+        return response(200, 0)
 
     return response(401, 'Job id required.')
 

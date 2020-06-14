@@ -8,13 +8,13 @@ import pytz
 from library.bootstrap import Constants, log_hr
 from library.data_loader import BreadCrumbsDataLoader
 from library.interfaces.sql_database import initiate_database, generate_unique_id
+from library.strategy.bread_crumbs import evaluate_strategy_bread_crumbs
 from library.strategy.executor import StrategyExecutor
-from library.strategy.reporting import export_strategy_bread_crumbs_to_csv, evaluate_strategy_bread_crumbs
+from library.strategy.reporting import export_strategy_bread_crumbs_to_csv
 from library.strategy.risk_profile import RiskProfile
 from library.strategy.strategy import parse_strategy_from_xml, parse_strategy_setup_from_xml, Strategy
 from library.utilities.job import Job
 from library.utilities.onboarding import add_portfolio, add_strategy, add_assets
-
 
 START_DATE = 'start_date'
 END_DATE = 'end_date'
@@ -56,10 +56,12 @@ class RegressionTester:
 
         last_run_datetimes = [max(run_calendar_days[day]) for day in run_calendar_days]
 
+        # These should all be the same so max is a the easiest way.
+        runs_per_day = max([len(day) for day in run_calendar_days])
         for run_datetime in last_run_datetimes:
             original_run_datetime = self.strategy.run_datetime
             self.strategy.run_datetime = run_datetime
-            self.strategy.load_required_data(historical_data=True)
+            self.strategy.load_required_data(historical_data=True, required_multiplier=runs_per_day)
             self.strategy.run_datetime = original_run_datetime
 
     def initiate_strategy(self, xml_path):
@@ -162,6 +164,7 @@ class RegressionTester:
         log_hr(width=25)
 
         # Log results.
+        Constants.log.info('total runs: {}'.format(results.runs))
         Constants.log.info('data warnings: {}'.format(results.data_warning_count))
         Constants.log.info('strategy errors: {}'.format(results.strategy_error_count))
         Constants.log.info('signals per run: {}'.format(results.signal_ratio))
@@ -169,9 +172,13 @@ class RegressionTester:
         Constants.log.info('final P&L: {}'.format(results.pnl))
 
         # Return True if regression has matched criteria. This can be improved in the future.
-        if results.pnl > 0:
-            return True
-        return False
+        if not results.pnl > 0:
+            return False
+        if results.signal_ratio < 1.0:
+            return False
+        if results.strategy_error_count > 1:
+            return False
+        return True
 
     def generate_regression_report(self):
         # Regression reports are in their own function as its name requires data from the regression tester object.

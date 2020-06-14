@@ -1,6 +1,6 @@
 import datetime
 
-import library.strategy.functions as strategy_functions
+import library.strategy.functions as functions
 from library.bootstrap import Constants
 from library.data_loader import MarketDataLoader
 from library.strategy.bread_crumbs import BreadCrumbs
@@ -51,6 +51,7 @@ def parse_strategy_from_xml(xml_path, return_object=False, db=None):
             ticker['before'] = datetime.datetime.strptime(ticker['before'], Constants.DATETIME_FORMAT)
         if 'after' in ticker:
             ticker['after'] = datetime.datetime.strptime(ticker['after'], Constants.DATETIME_FORMAT)
+        ticker['required'] = float(ticker['required']) if 'required' in ticker else None
     data_requirements = tickers
 
     if return_object:
@@ -102,7 +103,7 @@ def parse_strategy_setup_from_xml(xml_path):
 
 
 class Strategy:
-    _TABLE = 'strategies'
+    TABLE = 'strategies'
 
     def __init__(self, db, name, data_requirements, function, parameters, risk_profile, execution_options=None):
         self._db = db
@@ -117,7 +118,7 @@ class Strategy:
         self.run_datetime = Constants.run_time.replace(tzinfo=None)
 
         # Load portfolio.
-        portfolio_id = self._db.get_one_row(self._TABLE, 'name="{0}"'.format(self.name))[2]
+        portfolio_id = self._db.get_one_row(self.TABLE, 'name="{0}"'.format(self.name))[2]
         self.portfolio = Portfolio(portfolio_id, self._db)
 
         self.data_loader = MarketDataLoader()
@@ -181,26 +182,28 @@ class Strategy:
                 if warning not in self._data_warning_cache:
                     new_warnings.append(warning)
                     # Drop data warning bread crumbs.
-                    self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.DATA_WARNING], warning)
+                    self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.DATA_WARNING, warning)
 
         # Process new warnings.
         if new_warnings:
-            Constants.log.warning('Data loader reported 0 warning(s)'.format(len(self.data_loader.warnings)))
+            Constants.log.warning('Data loader reported {} warning(s)'.format(len(self.data_loader.warnings)))
 
-    def load_required_data(self, historical_data=False):
+    def load_required_data(self, historical_data=False, required_multiplier=1):
+        data_type = MarketDataLoader.TICKER
+
         # Load required data sets.
-        for required_data_set in self._data_requirements:
-            if required_data_set['type'] == MarketDataLoader.TICKER:
+        for requirement in self._data_requirements:
+            if requirement['type'] == data_type:
                 this_morning = self.run_datetime.replace(hour=0, minute=0, second=0)
                 self.data_loader.load_tickers(
-                    required_data_set['symbol'],
-                    required_data_set['before'] if 'before' in required_data_set else self.run_datetime,
-                    required_data_set['after'] if 'after' in required_data_set else this_morning,
-                    required=4,
+                    requirement['symbol'],
+                    requirement['before'] if 'before' in requirement else self.run_datetime,
+                    requirement['after'] if 'after' in requirement else this_morning,
+                    required=int(required_multiplier * requirement['required'] if requirement['required'] else 1),
                     historical_data=historical_data
                 )
         if self.data_loader.data:
-            Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data)))
+            Constants.log.info('Loaded {0} data set(s).'.format(len(self.data_loader.data[data_type])))
         else:
             Constants.log.info('No data sets loaded.')
 
@@ -213,23 +216,35 @@ class Strategy:
             self.load_required_data()
 
         # Check method exists.
-        if self._execution_function not in dir(strategy_functions):
+        if self._execution_function not in functions.LIST:
             raise Exception('Strategy function "{0}" not found.'.format(self._execution_function))
+
+        # Build strategy context.
+        context = Context(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
+        signals = None
 
         # Attempt to execute function.
         try:
-            # Build strategy context.
-            context = Context(self._db, self.name, self.run_datetime, self.data_loader.data, self._live_data_source)
-            parameters = self._execution_parameters
-            signals = eval('strategy_functions.{0}(context,parameters)'.format(self._execution_function))
-            clean_signals = self._clean_signals(signals)
-            if clean_signals:
-                self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.SIGNALS], clean_signals)
-            return clean_signals
+            if self._execution_function == functions.TEST:
+                signals = functions.test(context, self._execution_parameters)
+
+            if self._execution_function == functions.PAIRS:
+                signals = functions.pairs(context, self._execution_parameters)
         except Exception as error:
+            # Log strategy error and drop crumb.
             Constants.log.error('Error evaluating strategy "{0}": {1}'.format(self.name, error))
-            self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.TYPES[BreadCrumbs.STRATEGY_ERROR], error)
+            self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.STRATEGY_ERROR, error)
             return None
+
+        # If function runs nominally, clean and return the signals.
+        clean_signals = self._clean_signals(signals)
+
+        # Drop signals bread crumbs. (done here as signals are contained with in the strategy object.)
+        if clean_signals:
+            self.bread_crumbs.drop(self.run_datetime, BreadCrumbs.SIGNALS, clean_signals)
+
+        # Return cleaned signals, this could be an empty list.
+        return clean_signals
 
 
 

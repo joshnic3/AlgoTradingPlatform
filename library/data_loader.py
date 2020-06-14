@@ -16,8 +16,10 @@ class DataLoader:
 
     # Warning types.
     NO_DATA = 0
+    INCOMPLETE_DATA = 1
     WARNINGS = [
-        'no data'
+        'no data',
+        'incomplete data'
     ]
 
     def __init__(self, data_type, db_name=None):
@@ -63,6 +65,11 @@ class DataLoader:
 
 class BreadCrumbsDataLoader(DataLoader):
     BREAD_CRUMBS_TIME_SERIES = 'bread_crumbs_time_series'
+
+    # Data Indexes.
+    TIMESTAMP = 3
+    TYPE = 2
+    DATA = 4
 
     def __init__(self):
         DataLoader.__init__(self, self.BREAD_CRUMBS_TIME_SERIES)
@@ -148,12 +155,19 @@ class MarketDataLoader(DataLoader):
                 # Merge database and historical market data.
                 [data.append(h) for h in historical_data if h not in data]
 
+        # Process data.
         if data:
             # Remove time zone and any duplicated whilst maintaining order.
             formatted_data = [(d[0].replace(tzinfo=None), d[1], d[2]) for d in list(OrderedDict.fromkeys(data))]
             self._add_data(symbol, formatted_data)
-        else:
-            Constants.log.warning('Failed to tick data for {}'.format(data_detail_string))
+
+        # Add any warnings.
+        if data and len(data) < required:
+            Constants.log.warning('Only partially loaded tick data for {}'.format(data_detail_string))
+            warning = [Constants.run_time, self.WARNINGS[self.INCOMPLETE_DATA], data_detail_string]
+            self._add_warning(symbol, warning)
+        if not data:
+            Constants.log.warning('Failed to load tick data for {}'.format(data_detail_string))
             warning = [Constants.run_time, self.WARNINGS[self.NO_DATA], data_detail_string]
             self._add_warning(symbol, warning)
 
